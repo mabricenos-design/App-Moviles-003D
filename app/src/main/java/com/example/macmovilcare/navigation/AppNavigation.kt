@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.macmovilcare.ui.screens.CargarEvidenciaScreen
 import com.example.macmovilcare.ui.screens.CrearSolicitudScreen
 import com.example.macmovilcare.ui.screens.DetalleOrdenScreen
 import com.example.macmovilcare.ui.screens.HomeScreen
@@ -16,8 +17,10 @@ import com.example.macmovilcare.viewmodel.AuthViewModel
 import com.example.macmovilcare.viewmodel.OrdenesViewModel
 import com.example.macmovilcare.viewmodel.SolicitudViewModel
 
-// Definición de las rutas de navegación
 sealed class Pantalla(val ruta: String) {
+    object CargarEvidencia : Pantalla(ruta = "cargar_evidencia/{ordenId}") {
+        fun crearRuta(ordenId: String) = "cargar_evidencia/$ordenId"
+    }
     object Login : Pantalla("login")
     object Home : Pantalla("home")
     object DetalleOrden : Pantalla("detalle_orden/{ordenId}") {
@@ -31,18 +34,37 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     authViewModel: AuthViewModel = viewModel(),
     ordenesViewModel: OrdenesViewModel = viewModel(),
-    solicitudViewModel: SolicitudViewModel = viewModel()
+    solicitudViewModel: SolicitudViewModel = viewModel(),
+    esPantallaAncha: Boolean = false
 ) {
+    // Obtenemos el rol activo en la aplicación
+    val rolActivo by authViewModel.rolActivo.collectAsState()
+
     NavHost(
         navController = navController,
         startDestination = Pantalla.Login.ruta
     ) {
-        // 1. Pantalla de Login
+
+        // 0. Pantalla Cargar Evidencia
+        composable(route = Pantalla.CargarEvidencia.ruta) { backStackEntry ->
+            val ordenId = backStackEntry.arguments?.getString("ordenId") ?: ""
+            CargarEvidenciaScreen(
+                ordenId = ordenId,
+                onGuardarEvidencia = { id, uri, desc ->
+                    navController.popBackStack()
+                },
+                onVolver = { navController.popBackStack() }
+            )
+        }
+
+        // 1. Pantalla de Login (Conectada con el Rol)
         composable(Pantalla.Login.ruta) {
             val loginState by authViewModel.uiState.collectAsState()
 
             LoginScreen(
                 state = loginState,
+                rolSeleccionado = rolActivo,
+                onRolSeleccionado = authViewModel::seleccionarRolPrueba,
                 onCorreoChange = authViewModel::onCorreoChange,
                 onClaveChange = authViewModel::onClaveChange,
                 onLoginClick = {
@@ -61,6 +83,8 @@ fun AppNavigation(
 
             HomeScreen(
                 ordenes = listaOrdenes,
+                rolUsuario = rolActivo,
+                esPantallaAncha = esPantallaAncha,
                 onOrdenClick = { ordenId ->
                     ordenesViewModel.seleccionarOrden(ordenId)
                     navController.navigate(Pantalla.DetalleOrden.crearRuta(ordenId))
@@ -71,12 +95,13 @@ fun AppNavigation(
             )
         }
 
-        // 3. Pantalla de Detalle de la Orden
+        // 3. Pantalla de Detalle de la Orden (Adaptada al Rol)
         composable(Pantalla.DetalleOrden.ruta) {
             val ordenSeleccionada by ordenesViewModel.ordenSeleccionada.collectAsState()
 
             DetalleOrdenScreen(
                 orden = ordenSeleccionada,
+                rolUsuario = rolActivo, // Se envía el rol activo
                 onAprobarCotizacion = {
                     ordenSeleccionada?.let { orden ->
                         ordenesViewModel.responderCotizacion(orden.id, aprobada = true)
@@ -86,6 +111,9 @@ fun AppNavigation(
                     ordenSeleccionada?.let { orden ->
                         ordenesViewModel.responderCotizacion(orden.id, aprobada = false)
                     }
+                },
+                onAdjuntarEvidencia = { ordenId ->
+                    navController.navigate(Pantalla.CargarEvidencia.crearRuta(ordenId))
                 }
             )
         }
