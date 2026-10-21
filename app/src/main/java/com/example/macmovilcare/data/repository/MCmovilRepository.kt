@@ -1,12 +1,12 @@
 package com.example.macmovilcare.data.repository
 
-import com.example.macmovilcare.data.local.dao.OrdenDao
+import com.example.macmovilcare.data.local.dao.OrdenesDao
 import com.example.macmovilcare.data.local.entity.OrdenEntity
 import com.example.macmovilcare.data.remote.ApiService
 import kotlinx.coroutines.flow.Flow
 
 class MCmovilRepository(
-    private val ordenDao: OrdenDao,
+    private val ordenDao: OrdenesDao,
     private val apiService: ApiService
 ) {
 

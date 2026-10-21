@@ -1,17 +1,26 @@
 package com.example.macmovilcare.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.macmovilcare.data.local.AppDatabase
+import com.example.macmovilcare.data.local.entity.OrdenEntity
 import com.example.macmovilcare.model.SolicitudErrores
 import com.example.macmovilcare.model.SolicitudUiState
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-class SolicitudViewModel : ViewModel() {
+class SolicitudViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val db by lazy { AppDatabase.getDatabase(getApplication()) }
 
     private val _uiState = MutableStateFlow(SolicitudUiState())
     val uiState: StateFlow<SolicitudUiState> = _uiState.asStateFlow()
@@ -34,7 +43,7 @@ class SolicitudViewModel : ViewModel() {
         }
     }
 
-    fun enviarSolicitud() {
+    fun enviarSolicitud(onExito: () -> Unit = {}) {
         val equipoId = _uiState.value.equipoId
         val descripcion = _uiState.value.descripcionProblema
 
@@ -50,14 +59,35 @@ class SolicitudViewModel : ViewModel() {
 
         viewModelScope.launch {
             _uiState.update { it.copy(cargando = true) }
-            delay(1200) // Simulación de persistencia / consumo de API
-            _uiState.update {
-                it.copy(
-                    cargando = false,
-                    mensajeExito = "¡Solicitud registrada con éxito! Código de seguimiento asignado.",
-                    equipoId = "",
-                    descripcionProblema = ""
-                )
+
+            val nuevoId = (103..999).random().toString()
+            val fechaActual = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date())
+
+            val nuevaOrden = OrdenEntity(
+                id = nuevoId,
+                equipoId = equipoId,
+                clienteId = "CLI-01",
+                fechaIngreso = fechaActual,
+                estado = "INGRESADO",
+                diagnostico = descripcion
+            )
+
+            try {
+                withContext(Dispatchers.IO) {
+                    db.ordenDao().insertarOrden(nuevaOrden)
+                }
+
+                _uiState.update {
+                    it.copy(
+                        cargando = false,
+                        equipoId = "",
+                        descripcionProblema = ""
+                    )
+                }
+                onExito()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(cargando = false) }
+                e.printStackTrace()
             }
         }
     }

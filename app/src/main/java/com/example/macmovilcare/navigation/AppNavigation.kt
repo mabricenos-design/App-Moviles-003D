@@ -98,7 +98,11 @@ fun AppNavigation(
                 state = solicitudState,
                 onEquipoIdChange = solicitudViewModel::onEquipoIdChange,
                 onDescripcionChange = solicitudViewModel::onDescripcionChange,
-                onEnviarSolicitud = solicitudViewModel::enviarSolicitud,
+                onEnviarSolicitud = {
+                    solicitudViewModel.enviarSolicitud {
+                        navController.popBackStack()
+                    }
+                },
                 onVolver = {
                     navController.popBackStack()
                 }
