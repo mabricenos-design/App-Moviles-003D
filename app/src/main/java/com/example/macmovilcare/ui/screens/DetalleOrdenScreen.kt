@@ -1,16 +1,23 @@
 package com.example.macmovilcare.ui.screens
 
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.macmovilcare.model.EstadoOrden
@@ -18,6 +25,8 @@ import com.example.macmovilcare.model.OrdenTrabajo
 import com.example.macmovilcare.model.RolUsuario
 import com.example.macmovilcare.ui.components.CampoTextoCustom
 import com.example.macmovilcare.ui.components.EstadoBadge
+import java.text.NumberFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,14 +41,34 @@ fun DetalleOrdenScreen(
     var respuestaTecnica by remember { mutableStateOf("") }
     var montoTexto by remember { mutableStateOf("") }
     var detalleCotizacionTexto by remember { mutableStateOf("") }
+
+    // Estados para la foto tomada por Cámara o seleccionada de Galería
+    var fotoBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var fotoUri by remember { mutableStateOf<Uri?>(null) }
+
     var errorGeneral by remember { mutableStateOf<String?>(null) }
     var mensajeExitoTecnico by remember { mutableStateOf<String?>(null) }
 
+    val formatoMoneda = remember { NumberFormat.getIntegerInstance(Locale("es", "CL")) }
+
+    // 1. Launcher Nativo para CÁMARA (Captura Real de Foto)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        if (bitmap != null) {
+            fotoBitmap = bitmap
+            fotoUri = null // Prioriza la captura de cámara
+        }
+    }
+
+    // 2. Launcher Nativo para GALERÍA
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        fotoUri = uri
+        if (uri != null) {
+            fotoUri = uri
+            fotoBitmap = null // Prioriza la selección de galería
+        }
     }
 
     Scaffold(
@@ -71,7 +100,7 @@ fun DetalleOrdenScreen(
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // 1. Cabecera
+                // 1. Cabecera con número de orden y badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -97,7 +126,7 @@ fun DetalleOrdenScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 3. PANEL PARA QUE EL TÉCNICO FORMULE MANUALMENTE LA COTIZACIÓN
+                // 3. PANEL PARA QUE EL TÉCNICO FORMULE LA COTIZACIÓN Y ADJUNTE FOTO (CÁMARA / GALERÍA)
                 if (rolUsuario == RolUsuario.TECNICO && (orden.estado == EstadoOrden.INGRESADO || orden.estado == EstadoOrden.EN_DIAGNOSTICO)) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -106,7 +135,7 @@ fun DetalleOrdenScreen(
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("🛠️ Elaborar Cotización y Diagnóstico", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Ingresa el presupuesto personalizado y la evaluación para enviárselo al cliente:",
+                                "Ingresa el presupuesto personalizado y la evidencia fotográfica:",
                                 style = MaterialTheme.typography.bodySmall
                             )
 
@@ -125,7 +154,6 @@ fun DetalleOrdenScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Monto manual
                             OutlinedTextField(
                                 value = montoTexto,
                                 onValueChange = {
@@ -133,13 +161,13 @@ fun DetalleOrdenScreen(
                                     errorGeneral = null
                                 },
                                 label = { Text("Monto de la Cotización ($ CLP)") },
+                                placeholder = { Text("Ej: 89000 o 89.000") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.fillMaxWidth()
                             )
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Detalle manual de servicios
                             CampoTextoCustom(
                                 valor = detalleCotizacionTexto,
                                 onValueChange = {
@@ -153,18 +181,50 @@ fun DetalleOrdenScreen(
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Adjuntar Imagen Opcional (Galería Nativa)
-                            OutlinedButton(
-                                onClick = { galleryLauncher.launch("image/*") },
-                                modifier = Modifier.fillMaxWidth()
+                            Text("Adjuntar Evidencia del Dispositivo:", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // BOTONES DUALES: CÁMARA Y GALERÍA
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text(if (fotoUri == null) "📷 Adjuntar Foto de la Falla (Opcional)" else "🔄 Cambiar Imagen")
+                                OutlinedButton(
+                                    onClick = { cameraLauncher.launch(null) },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("📷 Cámara")
+                                }
+
+                                OutlinedButton(
+                                    onClick = { galleryLauncher.launch("image/*") },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("🖼️ Galería")
+                                }
+                            }
+
+                            // VISTA PREVIA DE LA FOTO CAPTURADA O SELECCIONADA
+                            fotoBitmap?.let { bmp ->
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("Foto capturada con Cámara:", style = MaterialTheme.typography.bodySmall)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Image(
+                                    bitmap = bmp.asImageBitmap(),
+                                    contentDescription = "Foto capturada con la cámara",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
                             }
 
                             fotoUri?.let { uri ->
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "Foto adjunta: ${uri.lastPathSegment}",
+                                    text = "Foto seleccionada de Galería: ${uri.lastPathSegment}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
@@ -179,23 +239,35 @@ fun DetalleOrdenScreen(
 
                             Button(
                                 onClick = {
-                                    val montoNum = montoTexto.toDoubleOrNull()
+                                    val montoLimpio = montoTexto
+                                        .replace(".", "")
+                                        .replace(",", "")
+                                        .replace("$", "")
+                                        .trim()
+                                    val montoNum = montoLimpio.toDoubleOrNull()
+
                                     if (respuestaTecnica.isBlank() || detalleCotizacionTexto.isBlank() || montoNum == null || montoNum <= 0) {
                                         errorGeneral = "Debe completar el diagnóstico, el detalle y un monto válido."
                                     } else {
+                                        val fotoReferencia = when {
+                                            fotoBitmap != null -> "camara_captura_${System.currentTimeMillis()}.jpg"
+                                            fotoUri != null -> fotoUri.toString()
+                                            else -> null
+                                        }
+
                                         onResponderComoTecnico(
                                             orden.id,
                                             respuestaTecnica,
                                             montoNum,
                                             detalleCotizacionTexto,
-                                            fotoUri?.toString()
+                                            fotoReferencia
                                         )
-                                        mensajeExitoTecnico = "¡Cotización enviada al cliente con éxito!"
+                                        mensajeExitoTecnico = "¡Cotización y evidencia enviadas al cliente con éxito!"
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Enviar Cotización Personalizada al Cliente")
+                                Text("Enviar Cotización al Cliente")
                             }
 
                             mensajeExitoTecnico?.let {
@@ -209,11 +281,13 @@ fun DetalleOrdenScreen(
 
                 // 4. Tarjeta de Cotización para el Cliente
                 orden.cotizacion?.let { cotizacion ->
+                    val montoFormateado = formatoMoneda.format(cotizacion.montoTotal)
+
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Cotización de Reparación", style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Monto Total: $${cotizacion.montoTotal.toInt()} CLP")
+                            Text("Monto Total: $$montoFormateado CLP")
                             Text("Detalle: ${cotizacion.detalleServicios}")
 
                             Spacer(modifier = Modifier.height(8.dp))
