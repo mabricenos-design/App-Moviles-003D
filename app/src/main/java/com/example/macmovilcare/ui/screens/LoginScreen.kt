@@ -7,11 +7,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.macmovilcare.model.LoginUiState
+import com.example.macmovilcare.model.RolUsuario
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
     state: LoginUiState,
+    rolSeleccionado: RolUsuario,
+    onRolSeleccionado: (RolUsuario) -> Unit,
     onCorreoChange: (String) -> Unit,
     onClaveChange: (String) -> Unit,
     onLoginClick: () -> Unit
@@ -57,6 +60,38 @@ fun LoginScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- INTEGRACIÓN DEL SELECTOR DE ROL DE PRUEBA ---
+            Text(
+                text = "Seleccione Perfil de Prueba:",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                RolUsuario.values().forEach { rol ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = (rolSeleccionado == rol),
+                            onClick = { onRolSeleccionado(rol) }
+                        )
+                        Text(
+                            text = rol.name,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            }
+            // ------------------------------------------------
 
             Spacer(modifier = Modifier.height(24.dp))
 

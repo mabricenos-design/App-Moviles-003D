@@ -2,18 +2,19 @@ package com.example.macmovilcare.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Paleta de colores para MCmovil Care (Tecnológico / Soporte TI)
-val AzulPrimario = Color(0xFF1E88E5)
-val AzulVariante = Color(0xFF1565C0)
-val AzulContenedor = Color(0xFFE3F2FD)
+// Paleta Principal Moderna (Indigo Tech & Slate)
+val AzulPrimario = Color(0xFF1E3A8A)       // Azul Índigo profundo elegante
+val AzulVariante = Color(0xFF3B82F6)       // Azul eléctrico moderno
+val AzulContenedor = Color(0xFFDBEAFE)     // Azul suave para cajas de selección y badges
 
-val GrisFondo = Color(0xFFF8F9FA)
-val GrisSuperficie = Color(0xFFFFFFFF)
-val TextoOscuro = Color(0xFF212121)
-val TextoSecundario = Color(0xFF757575)
+val GrisFondo = Color(0xFFF8FAFC)          // Fondo claro limpio tipo dashboard
+val GrisSuperficie = Color(0xFFFFFFFF)      // Blanco puro para tarjetas
+val GrisBorde = Color(0xFFE2E8F0)           // Borde sutil
+val TextoOscuro = Color(0xFF0F172A)        // Texto de alto contraste
+val TextoSecundario = Color(0xFF64748B)     // Gris neutro para etiquetas y fechas
 
-// Estados de Orden
-val EstadoAmarillo = Color(0xFFFFF176) // Pendiente / Cotizado
-val EstadoVerde = Color(0xFF81C784)    // Aprobado / Listo
-val EstadoAzul = Color(0xFF64B5F6)     // En reparación
-val EstadoRojo = Color(0xFFE57373)     // Rechazado
+// Estados de Órdenes y Alertas
+val EstadoAmarillo = Color(0xFFD97706)     // Ámbar para Pendiente / Cotizado
+val EstadoVerde = Color(0xFF059669)        // Esmeralda para Aprobado / Entregado
+val EstadoAzul = Color(0xFF0284C7)         // Celeste para En Reparación / Diagnóstico
+val EstadoRojo = Color(0xFFDC2626)         // Carmesí para Rechazado / Cancelado

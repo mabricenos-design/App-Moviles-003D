@@ -6,28 +6,28 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-// Esquema de colores en modo claro (Light Mode)
 private val LightColorScheme = lightColorScheme(
     primary = AzulPrimario,
     primaryContainer = AzulContenedor,
+    onPrimaryContainer = AzulPrimario,
     secondary = AzulVariante,
     background = GrisFondo,
     surface = GrisSuperficie,
     onPrimary = Color.White,
     onBackground = TextoOscuro,
-    onSurface = TextoOscuro
+    onSurface = TextoOscuro,
+    outline = GrisBorde
 )
 
-// Esquema de colores en modo oscuro (Dark Mode)
 private val DarkColorScheme = darkColorScheme(
-    primary = AzulPrimario,
-    primaryContainer = AzulVariante,
-    secondary = AzulVariante,
-    background = TextoOscuro,
-    surface = Color(0xFF1E1E1E),
+    primary = AzulVariante,
+    primaryContainer = Color(0xFF1E293B),
+    secondary = Color(0xFF60A5FA),
+    background = Color(0xFF0F172A),
+    surface = Color(0xFF1E293B),
     onPrimary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White
+    onBackground = Color(0xFFF8FAFC),
+    onSurface = Color(0xFFF8FAFC)
 )
 
 @Composable

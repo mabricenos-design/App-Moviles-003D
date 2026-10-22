@@ -8,6 +8,7 @@ import com.example.macmovilcare.data.local.entity.OrdenEntity
 import com.example.macmovilcare.model.SolicitudErrores
 import com.example.macmovilcare.model.SolicitudUiState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,7 +44,7 @@ class SolicitudViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun enviarSolicitud(onExito: () -> Unit = {}) {
+    fun enviarSolicitud(onExito: (equipoId: String, descripcion: String) -> Unit = { _, _ -> }) {
         val equipoId = _uiState.value.equipoId
         val descripcion = _uiState.value.descripcionProblema
 
@@ -76,19 +77,26 @@ class SolicitudViewModel(application: Application) : AndroidViewModel(applicatio
                 withContext(Dispatchers.IO) {
                     db.ordenDao().insertarOrden(nuevaOrden)
                 }
+                delay(800)
 
                 _uiState.update {
                     it.copy(
                         cargando = false,
                         equipoId = "",
-                        descripcionProblema = ""
+                        descripcionProblema = "",
+                        mensajeExito = "¡Solicitud registrada con éxito en Room! Orden #$nuevoId asignada."
                     )
                 }
-                onExito()
+
+                onExito(equipoId, descripcion)
             } catch (e: Exception) {
                 _uiState.update { it.copy(cargando = false) }
                 e.printStackTrace()
             }
         }
+    }
+
+    fun limpiarFormulario() {
+        _uiState.value = SolicitudUiState()
     }
 }

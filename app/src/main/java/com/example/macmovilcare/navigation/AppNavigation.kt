@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.macmovilcare.ui.screens.CargarEvidenciaScreen
 import com.example.macmovilcare.ui.screens.CrearSolicitudScreen
 import com.example.macmovilcare.ui.screens.DetalleOrdenScreen
 import com.example.macmovilcare.ui.screens.HomeScreen
@@ -16,14 +17,16 @@ import com.example.macmovilcare.viewmodel.AuthViewModel
 import com.example.macmovilcare.viewmodel.OrdenesViewModel
 import com.example.macmovilcare.viewmodel.SolicitudViewModel
 
-// Definición de las rutas de navegación
 sealed class Pantalla(val ruta: String) {
-    object Login : Pantalla("login")
-    object Home : Pantalla("home")
-    object DetalleOrden : Pantalla("detalle_orden/{ordenId}") {
+    object Login : Pantalla(ruta = "login")
+    object Home : Pantalla(ruta = "home")
+    object DetalleOrden : Pantalla(ruta = "detalle_orden/{ordenId}") {
         fun crearRuta(ordenId: String) = "detalle_orden/$ordenId"
     }
-    object CrearSolicitud : Pantalla("crear_solicitud")
+    object CrearSolicitud : Pantalla(ruta = "crear_solicitud")
+    object CargarEvidencia : Pantalla(ruta = "cargar_evidencia/{ordenId}") {
+        fun crearRuta(ordenId: String) = "cargar_evidencia/$ordenId"
+    }
 }
 
 @Composable
@@ -31,67 +34,90 @@ fun AppNavigation(
     navController: NavHostController = rememberNavController(),
     authViewModel: AuthViewModel = viewModel(),
     ordenesViewModel: OrdenesViewModel = viewModel(),
-    solicitudViewModel: SolicitudViewModel = viewModel()
+    solicitudViewModel: SolicitudViewModel = viewModel(),
+    esPantallaAncha: Boolean = false
 ) {
+    val rolActivo by authViewModel.rolActivo.collectAsState()
+    val notificacionTecnico by ordenesViewModel.notificacionTecnico.collectAsState()
+
     NavHost(
         navController = navController,
         startDestination = Pantalla.Login.ruta
     ) {
-        // 1. Pantalla de Login
-        composable(Pantalla.Login.ruta) {
+        // 1. Login
+        composable(route = Pantalla.Login.ruta) {
             val loginState by authViewModel.uiState.collectAsState()
 
             LoginScreen(
                 state = loginState,
+                rolSeleccionado = rolActivo,
+                onRolSeleccionado = authViewModel::seleccionarRolPrueba,
                 onCorreoChange = authViewModel::onCorreoChange,
                 onClaveChange = authViewModel::onClaveChange,
                 onLoginClick = {
                     authViewModel.iniciarSesion {
-                        navController.navigate(Pantalla.Home.ruta) {
-                            popUpTo(Pantalla.Login.ruta) { inclusive = true }
+                        navController.navigate(route = Pantalla.Home.ruta) {
+                            popUpTo(route = Pantalla.Login.ruta) { inclusive = true }
                         }
                     }
                 }
             )
         }
 
-        // 2. Pantalla Principal (Home)
-        composable(Pantalla.Home.ruta) {
+        // 2. Home
+        composable(route = Pantalla.Home.ruta) {
             val listaOrdenes by ordenesViewModel.ordenes.collectAsState()
 
             HomeScreen(
                 ordenes = listaOrdenes,
+                rolUsuario = rolActivo,
+                esPantallaAncha = esPantallaAncha,
+                mensajeNotificacion = notificacionTecnico,
+                onDescartarNotificacion = ordenesViewModel::limpiarNotificacion,
                 onOrdenClick = { ordenId ->
                     ordenesViewModel.seleccionarOrden(ordenId)
-                    navController.navigate(Pantalla.DetalleOrden.crearRuta(ordenId))
+                    navController.navigate(route = Pantalla.DetalleOrden.crearRuta(ordenId))
                 },
                 onNuevaSolicitudClick = {
-                    navController.navigate(Pantalla.CrearSolicitud.ruta)
+                    solicitudViewModel.limpiarFormulario()
+                    navController.navigate(route = Pantalla.CrearSolicitud.ruta)
+                },
+                onCerrarSesion = {
+                    navController.navigate(route = Pantalla.Login.ruta) {
+                        popUpTo(0) { inclusive = true }
+                    }
                 }
             )
         }
 
-        // 3. Pantalla de Detalle de la Orden
-        composable(Pantalla.DetalleOrden.ruta) {
+        // 3. Detalle de Orden
+        composable(route = Pantalla.DetalleOrden.ruta) {
             val ordenSeleccionada by ordenesViewModel.ordenSeleccionada.collectAsState()
 
             DetalleOrdenScreen(
                 orden = ordenSeleccionada,
+                rolUsuario = rolActivo,
                 onAprobarCotizacion = {
                     ordenSeleccionada?.let { orden ->
-                        ordenesViewModel.responderCotizacion(orden.id, aprobada = true)
+                        ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = true)
                     }
                 },
                 onRechazarCotizacion = {
                     ordenSeleccionada?.let { orden ->
-                        ordenesViewModel.responderCotizacion(orden.id, aprobada = false)
+                        ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = false)
                     }
+                },
+                onAdjuntarEvidencia = { ordenId ->
+                    navController.navigate(route = Pantalla.CargarEvidencia.crearRuta(ordenId))
+                },
+                onVolver = {
+                    navController.popBackStack()
                 }
             )
         }
 
-        // 4. Pantalla para Crear Nueva Solicitud
-        composable(Pantalla.CrearSolicitud.ruta) {
+        // 4. Crear Solicitud (Exclusivo Cliente)
+        composable(route = Pantalla.CrearSolicitud.ruta) {
             val solicitudState by solicitudViewModel.uiState.collectAsState()
 
             CrearSolicitudScreen(
@@ -99,13 +125,27 @@ fun AppNavigation(
                 onEquipoIdChange = solicitudViewModel::onEquipoIdChange,
                 onDescripcionChange = solicitudViewModel::onDescripcionChange,
                 onEnviarSolicitud = {
-                    solicitudViewModel.enviarSolicitud {
+                    solicitudViewModel.enviarSolicitud { equipoId, descripcion ->
+                        // Dispara la notificación nativa para que le llegue al técnico
+                        ordenesViewModel.dispararNotificacionNuevaSolicitud(equipoId, descripcion)
                         navController.popBackStack()
                     }
                 },
                 onVolver = {
                     navController.popBackStack()
                 }
+            )
+        }
+
+        // 5. Cargar Evidencia (Recurso Nativo de Galería)
+        composable(route = Pantalla.CargarEvidencia.ruta) { backStackEntry ->
+            val ordenId = backStackEntry.arguments?.getString("ordenId") ?: ""
+            CargarEvidenciaScreen(
+                ordenId = ordenId,
+                onGuardarEvidencia = { _, _, _ ->
+                    navController.popBackStack()
+                },
+                onVolver = { navController.popBackStack() }
             )
         }
     }

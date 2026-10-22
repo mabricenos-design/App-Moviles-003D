@@ -24,7 +24,7 @@ fun CrearSolicitudScreen(
                 title = { Text("Nueva Solicitud de Atención") },
                 navigationIcon = {
                     TextButton(onClick = onVolver) {
-                        Text("< Volver")
+                        Text("← Volver", color = MaterialTheme.colorScheme.primary)
                     }
                 }
             )
@@ -38,7 +38,7 @@ fun CrearSolicitudScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Ingrese los datos del equipo y la falla reportada",
+                text = "Ingrese los datos del equipo y la falla reportada para el taller.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
@@ -77,22 +77,21 @@ fun CrearSolicitudScreen(
                         modifier = Modifier.size(20.dp)
                     )
                 } else {
-                    Text("Enviar Solicitud")
+                    Text("Enviar Solicitud a Taller")
                 }
             }
 
             state.mensajeExito?.let { mensaje ->
                 Spacer(modifier = Modifier.height(16.dp))
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
                         text = mensaje,
                         modifier = Modifier.padding(12.dp),
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.bodyMedium
                     )
                 }
             }
