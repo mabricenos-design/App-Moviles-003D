@@ -22,6 +22,12 @@ interface OrdenesDao {
     @Query("UPDATE ordenes_trabajo SET estado = :nuevoEstado WHERE id = :ordenId")
     suspend fun actualizarEstado(ordenId: String, nuevoEstado: String)
 
-    @Query("UPDATE ordenes_trabajo SET estado = :nuevoEstado, diagnostico = :diagnostico WHERE id = :ordenId")
-    suspend fun responderTecnico(ordenId: String, nuevoEstado: String, diagnostico: String)
+    @Query("UPDATE ordenes_trabajo SET estado = :nuevoEstado, diagnostico = :diagnostico, montoCotizacion = :monto, detalleCotizacion = :detalle WHERE id = :ordenId")
+    suspend fun responderTecnicoConCotizacion(
+        ordenId: String,
+        nuevoEstado: String,
+        diagnostico: String,
+        monto: Double,
+        detalle: String
+    )
 }

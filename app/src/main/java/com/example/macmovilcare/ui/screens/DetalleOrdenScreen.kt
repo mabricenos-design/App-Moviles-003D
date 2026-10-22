@@ -5,11 +5,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.macmovilcare.model.EstadoOrden
 import com.example.macmovilcare.model.OrdenTrabajo
@@ -24,12 +26,14 @@ fun DetalleOrdenScreen(
     rolUsuario: RolUsuario = RolUsuario.CLIENTE,
     onAprobarCotizacion: () -> Unit,
     onRechazarCotizacion: () -> Unit,
-    onResponderComoTecnico: (ordenId: String, comentarios: String, uriFoto: String?) -> Unit,
+    onResponderComoTecnico: (ordenId: String, comentarios: String, monto: Double, detalleCotizacion: String, uriFoto: String?) -> Unit,
     onVolver: () -> Unit
 ) {
     var respuestaTecnica by remember { mutableStateOf("") }
+    var montoTexto by remember { mutableStateOf("") }
+    var detalleCotizacionTexto by remember { mutableStateOf("") }
     var fotoUri by remember { mutableStateOf<Uri?>(null) }
-    var errorRespuesta by remember { mutableStateOf<String?>(null) }
+    var errorGeneral by remember { mutableStateOf<String?>(null) }
     var mensajeExitoTecnico by remember { mutableStateOf<String?>(null) }
 
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -79,7 +83,7 @@ fun DetalleOrdenScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 2. Tarjeta de Diagnóstico / Comentarios del Técnico
+                // 2. Tarjeta de Diagnóstico / Comentarios
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Diagnóstico y Comentarios Técnicos", style = MaterialTheme.typography.titleMedium)
@@ -93,16 +97,16 @@ fun DetalleOrdenScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 3. PANEL PARA QUE EL TÉCNICO RESPONDA LA SOLICITUD
+                // 3. PANEL PARA QUE EL TÉCNICO FORMULE MANUALMENTE LA COTIZACIÓN
                 if (rolUsuario == RolUsuario.TECNICO && (orden.estado == EstadoOrden.INGRESADO || orden.estado == EstadoOrden.EN_DIAGNOSTICO)) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Text("🛠️ Responder Solicitud al Cliente", style = MaterialTheme.typography.titleMedium)
+                            Text("🛠️ Elaborar Cotización y Diagnóstico", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Ingresa tu evaluación técnica y presupuesto para enviársela al cliente como Pendiente de aprobación:",
+                                "Ingresa el presupuesto personalizado y la evaluación para enviárselo al cliente:",
                                 style = MaterialTheme.typography.bodySmall
                             )
 
@@ -112,47 +116,86 @@ fun DetalleOrdenScreen(
                                 valor = respuestaTecnica,
                                 onValueChange = {
                                     respuestaTecnica = it
-                                    errorRespuesta = null
+                                    errorGeneral = null
                                 },
-                                label = "Diagnóstico / Comentarios técnicos",
-                                error = errorRespuesta,
+                                label = "Diagnóstico técnico de la falla",
                                 singleLine = false,
-                                minLines = 3
+                                minLines = 2
                             )
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Adjuntar Imagen Opcional (Recurso Nativo)
+                            // Monto manual
+                            OutlinedTextField(
+                                value = montoTexto,
+                                onValueChange = {
+                                    montoTexto = it
+                                    errorGeneral = null
+                                },
+                                label = { Text("Monto de la Cotización ($ CLP)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Detalle manual de servicios
+                            CampoTextoCustom(
+                                valor = detalleCotizacionTexto,
+                                onValueChange = {
+                                    detalleCotizacionTexto = it
+                                    errorGeneral = null
+                                },
+                                label = "Detalle de repuestos y servicios (ej: Pantalla + MO)",
+                                singleLine = false,
+                                minLines = 2
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Adjuntar Imagen Opcional (Galería Nativa)
                             OutlinedButton(
                                 onClick = { galleryLauncher.launch("image/*") },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text(if (fotoUri == null) "📷 Adjuntar Imagen (Opcional)" else "🔄 Cambiar Imagen")
+                                Text(if (fotoUri == null) "📷 Adjuntar Foto de la Falla (Opcional)" else "🔄 Cambiar Imagen")
                             }
 
                             fotoUri?.let { uri ->
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Imagen seleccionada: ${uri.lastPathSegment}",
+                                    text = "Foto adjunta: ${uri.lastPathSegment}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary
                                 )
+                            }
+
+                            errorGeneral?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
 
                             Button(
                                 onClick = {
-                                    if (respuestaTecnica.isBlank()) {
-                                        errorRespuesta = "Debe escribir una respuesta o diagnóstico para el cliente"
+                                    val montoNum = montoTexto.toDoubleOrNull()
+                                    if (respuestaTecnica.isBlank() || detalleCotizacionTexto.isBlank() || montoNum == null || montoNum <= 0) {
+                                        errorGeneral = "Debe completar el diagnóstico, el detalle y un monto válido."
                                     } else {
-                                        onResponderComoTecnico(orden.id, respuestaTecnica, fotoUri?.toString())
-                                        mensajeExitoTecnico = "¡Respuesta técnica enviada al cliente con éxito!"
+                                        onResponderComoTecnico(
+                                            orden.id,
+                                            respuestaTecnica,
+                                            montoNum,
+                                            detalleCotizacionTexto,
+                                            fotoUri?.toString()
+                                        )
+                                        mensajeExitoTecnico = "¡Cotización enviada al cliente con éxito!"
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Enviar Evaluación Técnica al Cliente")
+                                Text("Enviar Cotización Personalizada al Cliente")
                             }
 
                             mensajeExitoTecnico?.let {
@@ -164,13 +207,13 @@ fun DetalleOrdenScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 4. Tarjeta de Cotización y Aprobación del Cliente
+                // 4. Tarjeta de Cotización para el Cliente
                 orden.cotizacion?.let { cotizacion ->
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Cotización de Reparación", style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Monto Total: $${cotizacion.montoTotal}")
+                            Text("Monto Total: $${cotizacion.montoTotal.toInt()} CLP")
                             Text("Detalle: ${cotizacion.detalleServicios}")
 
                             Spacer(modifier = Modifier.height(8.dp))

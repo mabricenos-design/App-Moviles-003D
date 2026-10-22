@@ -27,7 +27,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private val _ordenSeleccionada = MutableStateFlow<OrdenTrabajo?>(null)
     val ordenSeleccionada: StateFlow<OrdenTrabajo?> = _ordenSeleccionada.asStateFlow()
 
-    // Notificación para banner en pantalla
     private val _notificacionTecnico = MutableStateFlow<String?>(null)
     val notificacionTecnico: StateFlow<String?> = _notificacionTecnico.asStateFlow()
 
@@ -87,7 +86,9 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                                 clienteId = "CLI-01",
                                 fechaIngreso = "10-10-2026",
                                 estado = "COTIZADO_PENDIENTE",
-                                diagnostico = "Falla en la tarjeta de video y suciedad interna."
+                                diagnostico = "Falla en la tarjeta de video y suciedad interna.",
+                                montoCotizacion = 45000.0,
+                                detalleCotizacion = "Revisión técnica de circuitos y limpieza con ultrasonido."
                             ),
                             OrdenEntity(
                                 id = "102",
@@ -95,7 +96,9 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                                 clienteId = "CLI-01",
                                 fechaIngreso = "14-10-2026",
                                 estado = "EN_REPARACION",
-                                diagnostico = "Mantención preventiva y cambio de batería."
+                                diagnostico = "Mantención preventiva y cambio de batería.",
+                                montoCotizacion = 28000.0,
+                                detalleCotizacion = "Cambio de batería original y pasta térmica."
                             )
                         )
                         dao.insertarOrdenes(datosPrueba)
@@ -110,11 +113,11 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                                 fechaIngreso = entidad.fechaIngreso,
                                 estado = estadoEnum,
                                 diagnostico = entidad.diagnostico,
-                                cotizacion = if (estadoEnum == EstadoOrden.COTIZADO_PENDIENTE || estadoEnum == EstadoOrden.APROBADO || estadoEnum == EstadoOrden.RECHAZADO) {
+                                cotizacion = if (entidad.montoCotizacion != null && entidad.detalleCotizacion != null) {
                                     Cotizacion(
                                         id = "COT-${entidad.id}",
-                                        montoTotal = 35000.0,
-                                        detalleServicios = "Revisión técnica de taller + Reparación según diagnóstico",
+                                        montoTotal = entidad.montoCotizacion,
+                                        detalleServicios = entidad.detalleCotizacion,
                                         requiereAutorizacion = true,
                                         estadoAutorizacion = if (estadoEnum == EstadoOrden.APROBADO) "APROBADO" else if (estadoEnum == EstadoOrden.RECHAZADO) "RECHAZADO" else "PENDIENTE"
                                     )
@@ -147,8 +150,14 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         _ordenSeleccionada.value = _ordenes.value.find { it.id == ordenId }
     }
 
-    // El Técnico responde la solicitud agregando comentarios y opcionalmente imagen
-    fun responderSolicitudComoTecnico(ordenId: String, comentariosTecnico: String, uriImagen: String?) {
+    // Guarda la cotización personalizada escrita por el técnico en Room
+    fun responderSolicitudComoTecnico(
+        ordenId: String,
+        comentariosTecnico: String,
+        monto: Double,
+        detalleCotizacion: String,
+        uriImagen: String?
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val detalleFinal = if (!uriImagen.isNullOrBlank()) {
@@ -157,11 +166,12 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                     comentariosTecnico
                 }
 
-                // El estado pasa a COTIZADO_PENDIENTE para que el cliente lo apruebe o rechace
-                db.ordenDao().responderTecnico(
+                db.ordenDao().responderTecnicoConCotizacion(
                     ordenId = ordenId,
                     nuevoEstado = "COTIZADO_PENDIENTE",
-                    diagnostico = detalleFinal
+                    diagnostico = detalleFinal,
+                    monto = monto,
+                    detalle = detalleCotizacion
                 )
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -107,8 +107,8 @@ fun AppNavigation(
                         ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = false)
                     }
                 },
-                onResponderComoTecnico = { ordenId, comentarios, uriFoto ->
-                    ordenesViewModel.responderSolicitudComoTecnico(ordenId, comentarios, uriFoto)
+                onResponderComoTecnico = { ordenId, comentarios, monto, detalle, uriFoto ->
+                    ordenesViewModel.responderSolicitudComoTecnico(ordenId, comentarios, monto, detalle, uriFoto)
                     navController.popBackStack()
                 },
                 onVolver = {

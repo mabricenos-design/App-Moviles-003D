@@ -7,8 +7,9 @@ import androidx.room.RoomDatabase
 import com.example.macmovilcare.data.local.dao.OrdenesDao
 import com.example.macmovilcare.data.local.entity.OrdenEntity
 
-@Database(entities = [OrdenEntity::class], version = 1, exportSchema = false)
+@Database(entities = [OrdenEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
+
     abstract fun ordenDao(): OrdenesDao
 
     companion object {

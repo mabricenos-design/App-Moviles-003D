@@ -10,5 +10,7 @@ data class OrdenEntity(
     val clienteId: String,
     val fechaIngreso: String,
     val estado: String,
-    val diagnostico: String?
+    val diagnostico: String?,
+    val montoCotizacion: Double? = null,
+    val detalleCotizacion: String? = null
 )
