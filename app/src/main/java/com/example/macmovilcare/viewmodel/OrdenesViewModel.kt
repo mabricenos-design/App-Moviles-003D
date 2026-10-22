@@ -27,7 +27,7 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private val _ordenSeleccionada = MutableStateFlow<OrdenTrabajo?>(null)
     val ordenSeleccionada: StateFlow<OrdenTrabajo?> = _ordenSeleccionada.asStateFlow()
 
-    // Notificación en memoria para banner interno del técnico
+    // Notificación para banner en pantalla
     private val _notificacionTecnico = MutableStateFlow<String?>(null)
     val notificacionTecnico: StateFlow<String?> = _notificacionTecnico.asStateFlow()
 
@@ -39,7 +39,7 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private fun crearCanalNotificaciones() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = "Notificaciones Técnico MCmovil"
-            val descriptionText = "Avisos de nuevas solicitudes ingresadas por clientes"
+            val descriptionText = "Avisos de solicitudes en taller"
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel("CANAL_TECNICO_SOLICITUDES", name, importance).apply {
                 description = descriptionText
@@ -54,7 +54,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         val mensaje = "Nueva solicitud para equipo #$equipoId: $descripcion"
         _notificacionTecnico.value = mensaje
 
-        // Emisión de notificación nativa en la barra de Android
         try {
             val context = getApplication<Application>()
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -82,26 +81,42 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                 dao.obtenerTodasLasOrdenes().collect { entidades ->
                     if (entidades.isEmpty()) {
                         val datosPrueba = listOf(
-                            OrdenEntity(id = "101", equipoId = "EQ-550", clienteId = "CLI-01", fechaIngreso = "10-10-2026", estado = "COTIZADO_PENDIENTE", diagnostico = "Falla en la tarjeta de video y suciedad interna."),
-                            OrdenEntity(id = "102", equipoId = "EQ-720", clienteId = "CLI-01", fechaIngreso = "14-10-2026", estado = "EN_REPARACION", diagnostico = "Mantención preventiva y cambio de batería.")
+                            OrdenEntity(
+                                id = "101",
+                                equipoId = "EQ-550",
+                                clienteId = "CLI-01",
+                                fechaIngreso = "10-10-2026",
+                                estado = "COTIZADO_PENDIENTE",
+                                diagnostico = "Falla en la tarjeta de video y suciedad interna."
+                            ),
+                            OrdenEntity(
+                                id = "102",
+                                equipoId = "EQ-720",
+                                clienteId = "CLI-01",
+                                fechaIngreso = "14-10-2026",
+                                estado = "EN_REPARACION",
+                                diagnostico = "Mantención preventiva y cambio de batería."
+                            )
                         )
                         dao.insertarOrdenes(datosPrueba)
                     } else {
                         _ordenes.value = entidades.map { entidad ->
+                            val estadoEnum = runCatching { EstadoOrden.valueOf(entidad.estado) }.getOrDefault(EstadoOrden.INGRESADO)
+
                             OrdenTrabajo(
                                 id = entidad.id,
                                 equipoId = entidad.equipoId,
                                 clienteId = entidad.clienteId,
                                 fechaIngreso = entidad.fechaIngreso,
-                                estado = runCatching { EstadoOrden.valueOf(entidad.estado) }.getOrDefault(EstadoOrden.INGRESADO),
+                                estado = estadoEnum,
                                 diagnostico = entidad.diagnostico,
-                                cotizacion = if (entidad.id == "101") {
+                                cotizacion = if (estadoEnum == EstadoOrden.COTIZADO_PENDIENTE || estadoEnum == EstadoOrden.APROBADO || estadoEnum == EstadoOrden.RECHAZADO) {
                                     Cotizacion(
-                                        id = "COT-101",
-                                        montoTotal = 45000.0,
-                                        detalleServicios = "Limpieza profunda + cambio de componente electrónico",
+                                        id = "COT-${entidad.id}",
+                                        montoTotal = 35000.0,
+                                        detalleServicios = "Revisión técnica de taller + Reparación según diagnóstico",
                                         requiereAutorizacion = true,
-                                        estadoAutorizacion = "PENDIENTE"
+                                        estadoAutorizacion = if (estadoEnum == EstadoOrden.APROBADO) "APROBADO" else if (estadoEnum == EstadoOrden.RECHAZADO) "RECHAZADO" else "PENDIENTE"
                                     )
                                 } else null,
                                 garantia = Garantia(
@@ -130,6 +145,28 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
 
     fun seleccionarOrden(ordenId: String) {
         _ordenSeleccionada.value = _ordenes.value.find { it.id == ordenId }
+    }
+
+    // El Técnico responde la solicitud agregando comentarios y opcionalmente imagen
+    fun responderSolicitudComoTecnico(ordenId: String, comentariosTecnico: String, uriImagen: String?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val detalleFinal = if (!uriImagen.isNullOrBlank()) {
+                    "$comentariosTecnico [📷 Evidencia adjunta: ${uriImagen.substringAfterLast("/")}]"
+                } else {
+                    comentariosTecnico
+                }
+
+                // El estado pasa a COTIZADO_PENDIENTE para que el cliente lo apruebe o rechace
+                db.ordenDao().responderTecnico(
+                    ordenId = ordenId,
+                    nuevoEstado = "COTIZADO_PENDIENTE",
+                    diagnostico = detalleFinal
+                )
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
     fun responderCotizacion(ordenId: String, aprobada: Boolean) {

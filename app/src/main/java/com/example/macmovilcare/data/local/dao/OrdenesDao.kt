@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface OrdenesDao {
+
     @Query("SELECT * FROM ordenes_trabajo")
     fun obtenerTodasLasOrdenes(): Flow<List<OrdenEntity>>
 
@@ -20,4 +21,7 @@ interface OrdenesDao {
 
     @Query("UPDATE ordenes_trabajo SET estado = :nuevoEstado WHERE id = :ordenId")
     suspend fun actualizarEstado(ordenId: String, nuevoEstado: String)
+
+    @Query("UPDATE ordenes_trabajo SET estado = :nuevoEstado, diagnostico = :diagnostico WHERE id = :ordenId")
+    suspend fun responderTecnico(ordenId: String, nuevoEstado: String, diagnostico: String)
 }

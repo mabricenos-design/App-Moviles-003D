@@ -107,8 +107,9 @@ fun AppNavigation(
                         ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = false)
                     }
                 },
-                onAdjuntarEvidencia = { ordenId ->
-                    navController.navigate(route = Pantalla.CargarEvidencia.crearRuta(ordenId))
+                onResponderComoTecnico = { ordenId, comentarios, uriFoto ->
+                    ordenesViewModel.responderSolicitudComoTecnico(ordenId, comentarios, uriFoto)
+                    navController.popBackStack()
                 },
                 onVolver = {
                     navController.popBackStack()
@@ -126,7 +127,6 @@ fun AppNavigation(
                 onDescripcionChange = solicitudViewModel::onDescripcionChange,
                 onEnviarSolicitud = {
                     solicitudViewModel.enviarSolicitud { equipoId, descripcion ->
-                        // Dispara la notificación nativa para que le llegue al técnico
                         ordenesViewModel.dispararNotificacionNuevaSolicitud(equipoId, descripcion)
                         navController.popBackStack()
                     }
@@ -137,7 +137,7 @@ fun AppNavigation(
             )
         }
 
-        // 5. Cargar Evidencia (Recurso Nativo de Galería)
+        // 5. Cargar Evidencia
         composable(route = Pantalla.CargarEvidencia.ruta) { backStackEntry ->
             val ordenId = backStackEntry.arguments?.getString("ordenId") ?: ""
             CargarEvidenciaScreen(

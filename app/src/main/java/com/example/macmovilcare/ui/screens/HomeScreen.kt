@@ -1,6 +1,5 @@
 package com.example.macmovilcare.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,14 +26,19 @@ fun HomeScreen(
     onNuevaSolicitudClick: () -> Unit,
     onCerrarSesion: () -> Unit
 ) {
-    // 1. Filtrado de órdenes según la responsabilidad del rol
+    // 1. Filtrado de órdenes por rol
     val ordenesFiltradas = when (rolUsuario) {
         RolUsuario.CLIENTE -> ordenes
-        RolUsuario.TECNICO -> ordenes.filter { it.estado == EstadoOrden.EN_REPARACION || it.estado == EstadoOrden.EN_DIAGNOSTICO || it.estado == EstadoOrden.INGRESADO }
-        RolUsuario.ADMINISTRADOR -> ordenes // El Admin ve todas las órdenes
+        RolUsuario.TECNICO -> ordenes.filter {
+            it.estado == EstadoOrden.INGRESADO || it.estado == EstadoOrden.EN_DIAGNOSTICO || it.estado == EstadoOrden.EN_REPARACION || it.estado == EstadoOrden.COTIZADO_PENDIENTE
+        }
+        RolUsuario.ADMINISTRADOR -> ordenes
     }
 
-    // 2. Título personalizado
+    // Para el Cliente: separamos las pendientes respondidas por el técnico para ponerlas ARRIBA
+    val pendientesCliente = ordenesFiltradas.filter { it.estado == EstadoOrden.COTIZADO_PENDIENTE }
+    val otrasOrdenesCliente = ordenesFiltradas.filter { it.estado != EstadoOrden.COTIZADO_PENDIENTE }
+
     val tituloPantalla = when (rolUsuario) {
         RolUsuario.CLIENTE -> "Mis Equipos y Solicitudes"
         RolUsuario.TECNICO -> "Taller Técnico (Órdenes)"
@@ -52,7 +56,6 @@ fun HomeScreen(
                 }
             )
         },
-        // Solo el CLIENTE tiene acceso a crear solicitudes
         floatingActionButton = {
             if (rolUsuario == RolUsuario.CLIENTE) {
                 ExtendedFloatingActionButton(
@@ -102,50 +105,73 @@ fun HomeScreen(
                 ) {
                     Text("No hay órdenes disponibles para este perfil.")
                 }
-            } else if (esPantallaAncha) {
-                // Layout de 2 columnas para Tablets
-                Row(modifier = Modifier.fillMaxSize()) {
-                    LazyColumn(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        items(ordenesFiltradas) { orden ->
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    // --- SECCIÓN SUPERIOR: PENDIENTES DE RESPUESTA PARA EL CLIENTE ---
+                    if (rolUsuario == RolUsuario.CLIENTE && pendientesCliente.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = "⚠️ Respuestas Técnicas Pendientes de Aprobación (${pendientesCliente.size})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        text = "El técnico ha evaluado tu solicitud. Toca una orden para revisar sus comentarios y autorizar la cotización.",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        items(pendientesCliente) { orden ->
+                            TarjetaOrden(
+                                orden = orden,
+                                nombreEquipo = "Equipo #${orden.equipoId} (¡Pendiente de tu respuesta!)",
+                                onClick = { onOrdenClick(orden.id) }
+                            )
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Historial y Otras Solicitudes",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        items(otrasOrdenesCliente) { orden ->
                             TarjetaOrden(
                                 orden = orden,
                                 nombreEquipo = "Equipo #${orden.equipoId}",
                                 onClick = { onOrdenClick(orden.id) }
                             )
                         }
-                    }
-
-                    Divider(modifier = Modifier.fillMaxHeight().width(1.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Seleccione una orden para ver detalles y cotización",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            } else {
-                // Layout estándar para Smartphones
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    items(ordenesFiltradas) { orden ->
-                        TarjetaOrden(
-                            orden = orden,
-                            nombreEquipo = "Equipo #${orden.equipoId}",
-                            onClick = { onOrdenClick(orden.id) }
-                        )
+                    } else {
+                        // Lista estándar para Técnico, Admin o Cliente sin pendientes
+                        items(ordenesFiltradas) { orden ->
+                            TarjetaOrden(
+                                orden = orden,
+                                nombreEquipo = if (orden.estado == EstadoOrden.INGRESADO && rolUsuario == RolUsuario.TECNICO) {
+                                    "⚡ Nueva Solicitud Cliente - Equipo #${orden.equipoId}"
+                                } else {
+                                    "Equipo #${orden.equipoId}"
+                                },
+                                onClick = { onOrdenClick(orden.id) }
+                            )
+                        }
                     }
                 }
             }

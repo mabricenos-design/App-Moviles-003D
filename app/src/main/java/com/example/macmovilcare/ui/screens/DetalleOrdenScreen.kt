@@ -1,12 +1,20 @@
 package com.example.macmovilcare.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.macmovilcare.model.EstadoOrden
 import com.example.macmovilcare.model.OrdenTrabajo
 import com.example.macmovilcare.model.RolUsuario
+import com.example.macmovilcare.ui.components.CampoTextoCustom
 import com.example.macmovilcare.ui.components.EstadoBadge
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -16,9 +24,20 @@ fun DetalleOrdenScreen(
     rolUsuario: RolUsuario = RolUsuario.CLIENTE,
     onAprobarCotizacion: () -> Unit,
     onRechazarCotizacion: () -> Unit,
-    onAdjuntarEvidencia: (String) -> Unit = {},
+    onResponderComoTecnico: (ordenId: String, comentarios: String, uriFoto: String?) -> Unit,
     onVolver: () -> Unit
 ) {
+    var respuestaTecnica by remember { mutableStateOf("") }
+    var fotoUri by remember { mutableStateOf<Uri?>(null) }
+    var errorRespuesta by remember { mutableStateOf<String?>(null) }
+    var mensajeExitoTecnico by remember { mutableStateOf<String?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        fotoUri = uri
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -36,7 +55,7 @@ fun DetalleOrdenScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                contentAlignment = Alignment.Center
             ) {
                 Text("Cargando información...")
             }
@@ -46,12 +65,13 @@ fun DetalleOrdenScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .padding(16.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                // 1. Cabecera con número de orden y badge de estado
+                // 1. Cabecera
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text("Orden #${orden.id}", style = MaterialTheme.typography.headlineSmall)
                     EstadoBadge(estado = orden.estado)
@@ -59,18 +79,92 @@ fun DetalleOrdenScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 2. Tarjeta de Diagnóstico
+                // 2. Tarjeta de Diagnóstico / Comentarios del Técnico
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Diagnóstico Técnico", style = MaterialTheme.typography.titleMedium)
+                        Text("Diagnóstico y Comentarios Técnicos", style = MaterialTheme.typography.titleMedium)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(orden.diagnostico ?: "Pendiente de revisión técnica.")
+                        Text(
+                            text = orden.diagnostico ?: "Pendiente de revisión técnica.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 3. Tarjeta de Cotización
+                // 3. PANEL PARA QUE EL TÉCNICO RESPONDA LA SOLICITUD
+                if (rolUsuario == RolUsuario.TECNICO && (orden.estado == EstadoOrden.INGRESADO || orden.estado == EstadoOrden.EN_DIAGNOSTICO)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("🛠️ Responder Solicitud al Cliente", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Ingresa tu evaluación técnica y presupuesto para enviársela al cliente como Pendiente de aprobación:",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            CampoTextoCustom(
+                                valor = respuestaTecnica,
+                                onValueChange = {
+                                    respuestaTecnica = it
+                                    errorRespuesta = null
+                                },
+                                label = "Diagnóstico / Comentarios técnicos",
+                                error = errorRespuesta,
+                                singleLine = false,
+                                minLines = 3
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Adjuntar Imagen Opcional (Recurso Nativo)
+                            OutlinedButton(
+                                onClick = { galleryLauncher.launch("image/*") },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (fotoUri == null) "📷 Adjuntar Imagen (Opcional)" else "🔄 Cambiar Imagen")
+                            }
+
+                            fotoUri?.let { uri ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Imagen seleccionada: ${uri.lastPathSegment}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                onClick = {
+                                    if (respuestaTecnica.isBlank()) {
+                                        errorRespuesta = "Debe escribir una respuesta o diagnóstico para el cliente"
+                                    } else {
+                                        onResponderComoTecnico(orden.id, respuestaTecnica, fotoUri?.toString())
+                                        mensajeExitoTecnico = "¡Respuesta técnica enviada al cliente con éxito!"
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Enviar Evaluación Técnica al Cliente")
+                            }
+
+                            mensajeExitoTecnico?.let {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // 4. Tarjeta de Cotización y Aprobación del Cliente
                 orden.cotizacion?.let { cotizacion ->
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -102,11 +196,11 @@ fun DetalleOrdenScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 4. Tarjeta de Garantía
+                // 5. Garantía
                 orden.garantia?.let { garantia ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("🛡️ Garantía del Servicio", style = MaterialTheme.typography.titleMedium)
@@ -122,7 +216,7 @@ fun DetalleOrdenScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
 
-                // 5. Tarjeta de Próxima Mantención
+                // 6. Próxima Mantención
                 orden.proximaMantencion?.let { mantencion ->
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -131,18 +225,6 @@ fun DetalleOrdenScreen(
                             Text("Tipo: ${mantencion.tipoMantencion}")
                             Text("Fecha Sugerida: ${mantencion.fechaSugerida}")
                         }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-
-                // 6. Botón de Evidencias (Solo para Técnico o Administrador)
-                if (rolUsuario == RolUsuario.TECNICO || rolUsuario == RolUsuario.ADMINISTRADOR) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = { onAdjuntarEvidencia(orden.id) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("📷 Adjuntar Evidencia Técnica (Galería Nativa)")
                     }
                 }
             }
