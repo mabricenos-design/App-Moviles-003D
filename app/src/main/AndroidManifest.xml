@@ -2,12 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permisos para recursos nativos: Notificaciones, Cámara y Galería -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Permisos para Cámara y Galería -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Indica que la cámara es necesaria pero no bloquea dispositivos sin ella -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
