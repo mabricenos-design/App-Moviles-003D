@@ -5,10 +5,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.macmovilcare.data.local.AppDatabase
 import com.example.macmovilcare.data.local.entity.OrdenEntity
+import com.example.macmovilcare.data.remote.RetrofitClient
+import com.example.macmovilcare.data.repository.MCmovilRepository
 import com.example.macmovilcare.model.SolicitudErrores
 import com.example.macmovilcare.model.SolicitudUiState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +22,10 @@ import java.util.Locale
 
 class SolicitudViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db by lazy { AppDatabase.getDatabase(getApplication()) }
+    private val repository: MCmovilRepository by lazy {
+        val dao = AppDatabase.getDatabase(getApplication()).ordenDao()
+        MCmovilRepository(ordenDao = dao, apiService = RetrofitClient.apiService)
+    }
 
     private val _uiState = MutableStateFlow(SolicitudUiState())
     val uiState: StateFlow<SolicitudUiState> = _uiState.asStateFlow()
@@ -44,7 +48,11 @@ class SolicitudViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun enviarSolicitud(onExito: (equipoId: String, descripcion: String) -> Unit = { _, _ -> }) {
+    fun limpiarFormulario() {
+        _uiState.value = SolicitudUiState()
+    }
+
+    fun enviarSolicitud(onExito: (String, String) -> Unit = { _, _ -> }) {
         val equipoId = _uiState.value.equipoId
         val descripcion = _uiState.value.descripcionProblema
 
@@ -61,42 +69,38 @@ class SolicitudViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             _uiState.update { it.copy(cargando = true) }
 
-            val nuevoId = (103..999).random().toString()
-            val fechaActual = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date())
-
-            val nuevaOrden = OrdenEntity(
-                id = nuevoId,
+            val tokenPrueba = "token-academico-simulacion"
+            val exitoRemoto = repository.enviarNuevaSolicitud(
+                token = tokenPrueba,
                 equipoId = equipoId,
-                clienteId = "CLI-01",
-                fechaIngreso = fechaActual,
-                estado = "INGRESADO",
-                diagnostico = descripcion
+                descripcionProblema = descripcion
             )
 
-            try {
+            // Si la API falló por falta de conexión, guardamos localmente en Room como respaldo
+            if (!exitoRemoto) {
+                val nuevoId = (103..999).random().toString()
+                val fechaActual = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date())
+                val nuevaOrden = OrdenEntity(
+                    id = nuevoId,
+                    equipoId = equipoId,
+                    clienteId = "CLI-01",
+                    fechaIngreso = fechaActual,
+                    estado = "INGRESADO",
+                    diagnostico = descripcion
+                )
                 withContext(Dispatchers.IO) {
-                    db.ordenDao().insertarOrden(nuevaOrden)
+                    AppDatabase.getDatabase(getApplication()).ordenDao().insertarOrden(nuevaOrden)
                 }
-                delay(800)
-
-                _uiState.update {
-                    it.copy(
-                        cargando = false,
-                        equipoId = "",
-                        descripcionProblema = "",
-                        mensajeExito = "¡Solicitud registrada con éxito en Room! Orden #$nuevoId asignada."
-                    )
-                }
-
-                onExito(equipoId, descripcion)
-            } catch (e: Exception) {
-                _uiState.update { it.copy(cargando = false) }
-                e.printStackTrace()
             }
-        }
-    }
 
-    fun limpiarFormulario() {
-        _uiState.value = SolicitudUiState()
+            _uiState.update {
+                it.copy(
+                    cargando = false,
+                    equipoId = "",
+                    descripcionProblema = ""
+                )
+            }
+            onExito(equipoId, descripcion)
+        }
     }
 }

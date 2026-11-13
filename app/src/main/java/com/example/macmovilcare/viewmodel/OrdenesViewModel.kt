@@ -1,25 +1,31 @@
 package com.example.macmovilcare.viewmodel
 
 import android.app.Application
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
-import android.os.Build
-import androidx.core.app.NotificationCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.macmovilcare.data.local.AppDatabase
 import com.example.macmovilcare.data.local.entity.OrdenEntity
-import com.example.macmovilcare.model.*
+import com.example.macmovilcare.data.remote.RetrofitClient
+import com.example.macmovilcare.data.repository.MCmovilRepository
+import com.example.macmovilcare.model.Cotizacion
+import com.example.macmovilcare.model.EstadoOrden
+import com.example.macmovilcare.model.Evidencia
+import com.example.macmovilcare.model.OrdenTrabajo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class OrdenesViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db by lazy { AppDatabase.getDatabase(getApplication()) }
+    private val repository: MCmovilRepository by lazy {
+        val dao = AppDatabase.getDatabase(getApplication()).ordenDao()
+        MCmovilRepository(ordenDao = dao, apiService = RetrofitClient.apiService)
+    }
 
     private val _ordenes = MutableStateFlow<List<OrdenTrabajo>>(emptyList())
     val ordenes: StateFlow<List<OrdenTrabajo>> = _ordenes.asStateFlow()
@@ -27,58 +33,38 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private val _ordenSeleccionada = MutableStateFlow<OrdenTrabajo?>(null)
     val ordenSeleccionada: StateFlow<OrdenTrabajo?> = _ordenSeleccionada.asStateFlow()
 
+    // Estados restaurados para el flujo del Técnico y Notificaciones
     private val _notificacionTecnico = MutableStateFlow<String?>(null)
     val notificacionTecnico: StateFlow<String?> = _notificacionTecnico.asStateFlow()
 
+    // Mapa local en memoria para conservar cotizaciones generadas en la sesión
+    private val cotizacionesMap = mutableMapOf<String, Cotizacion>(
+        "101" to Cotizacion(
+            id = "COT-101",
+            montoTotal = 45000.0,
+            detalleServicios = "Limpieza profunda + cambio de componente electrónico",
+            requiereAutorizacion = true,
+            estadoAutorizacion = "PENDIENTE"
+        )
+    )
+
+    // 1. AGREGADO: Mapa local en memoria para conservar las evidencias (fotos) subidas por el técnico
+    private val evidenciasMap = mutableMapOf<String, List<Evidencia>>()
+
     init {
-        crearCanalNotificaciones()
-        cargarDatos()
+        sincronizarYObservarOrdenes()
     }
 
-    private fun crearCanalNotificaciones() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "Notificaciones Técnico MCmovil"
-            val descriptionText = "Avisos de solicitudes en taller"
-            val importance = NotificationManager.IMPORTANCE_HIGH
-            val channel = NotificationChannel("CANAL_TECNICO_SOLICITUDES", name, importance).apply {
-                description = descriptionText
-            }
-            val notificationManager: NotificationManager =
-                getApplication<Application>().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+    private fun sincronizarYObservarOrdenes() {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.sincronizarOrdenes()
         }
-    }
 
-    fun dispararNotificacionNuevaSolicitud(equipoId: String, descripcion: String) {
-        val mensaje = "Nueva solicitud para equipo #$equipoId: $descripcion"
-        _notificacionTecnico.value = mensaje
-
-        try {
-            val context = getApplication<Application>()
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val builder = NotificationCompat.Builder(context, "CANAL_TECNICO_SOLICITUDES")
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle("🔔 Nueva Solicitud en Taller")
-                .setContentText(mensaje)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setAutoCancel(true)
-
-            notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    fun limpiarNotificacion() {
-        _notificacionTecnico.value = null
-    }
-
-    private fun cargarDatos() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val dao = db.ordenDao()
-                dao.obtenerTodasLasOrdenes().collect { entidades ->
+                repository.todasLasOrdenes.collect { entidades ->
                     if (entidades.isEmpty()) {
+                        val dao = AppDatabase.getDatabase(getApplication()).ordenDao()
                         val datosPrueba = listOf(
                             OrdenEntity(
                                 id = "101",
@@ -86,9 +72,7 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                                 clienteId = "CLI-01",
                                 fechaIngreso = "10-10-2026",
                                 estado = "COTIZADO_PENDIENTE",
-                                diagnostico = "Falla en la tarjeta de video y suciedad interna.",
-                                montoCotizacion = 45000.0,
-                                detalleCotizacion = "Revisión técnica de circuitos y limpieza con ultrasonido."
+                                diagnostico = "Falla en la tarjeta de video y suciedad interna."
                             ),
                             OrdenEntity(
                                 id = "102",
@@ -96,47 +80,27 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                                 clienteId = "CLI-01",
                                 fechaIngreso = "14-10-2026",
                                 estado = "EN_REPARACION",
-                                diagnostico = "Mantención preventiva y cambio de batería.",
-                                montoCotizacion = 28000.0,
-                                detalleCotizacion = "Cambio de batería original y pasta térmica."
+                                diagnostico = "Mantención preventiva y cambio de batería."
                             )
                         )
                         dao.insertarOrdenes(datosPrueba)
                     } else {
                         _ordenes.value = entidades.map { entidad ->
-                            val estadoEnum = runCatching { EstadoOrden.valueOf(entidad.estado) }.getOrDefault(EstadoOrden.INGRESADO)
-
                             OrdenTrabajo(
                                 id = entidad.id,
                                 equipoId = entidad.equipoId,
                                 clienteId = entidad.clienteId,
                                 fechaIngreso = entidad.fechaIngreso,
-                                estado = estadoEnum,
+                                estado = runCatching { EstadoOrden.valueOf(entidad.estado) }
+                                    .getOrDefault(EstadoOrden.INGRESADO),
                                 diagnostico = entidad.diagnostico,
-                                cotizacion = if (entidad.montoCotizacion != null && entidad.detalleCotizacion != null) {
-                                    Cotizacion(
-                                        id = "COT-${entidad.id}",
-                                        montoTotal = entidad.montoCotizacion,
-                                        detalleServicios = entidad.detalleCotizacion,
-                                        requiereAutorizacion = true,
-                                        estadoAutorizacion = if (estadoEnum == EstadoOrden.APROBADO) "APROBADO" else if (estadoEnum == EstadoOrden.RECHAZADO) "RECHAZADO" else "PENDIENTE"
-                                    )
-                                } else null,
-                                garantia = Garantia(
-                                    id = "GAR-${entidad.id}",
-                                    fechaInicio = "10-10-2026",
-                                    fechaVencimiento = "10-04-2027",
-                                    coberturaDetalle = "Servicio técnico y componentes reemplazados",
-                                    estaActiva = true
-                                ),
-                                proximaMantencion = Mantencion(
-                                    id = "MAN-${entidad.id}",
-                                    equipoId = entidad.equipoId,
-                                    fechaSugerida = "15-01-2027",
-                                    tipoMantencion = "Limpieza interna y cambio de pasta térmica",
-                                    realizada = false
-                                )
+                                cotizacion = cotizacionesMap[entidad.id],
+                                // 2. AGREGADO: Se asignan las evidencias guardadas
+                                evidencias = evidenciasMap[entidad.id] ?: emptyList()
                             )
+                        }
+                        _ordenSeleccionada.value?.let { actual ->
+                            _ordenSeleccionada.value = _ordenes.value.find { it.id == actual.id }
                         }
                     }
                 }
@@ -150,42 +114,89 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         _ordenSeleccionada.value = _ordenes.value.find { it.id == ordenId }
     }
 
-    // Guarda la cotización personalizada escrita por el técnico en Room
-    fun responderSolicitudComoTecnico(
-        ordenId: String,
-        comentariosTecnico: String,
-        monto: Double,
-        detalleCotizacion: String,
-        uriImagen: String?
-    ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val detalleFinal = if (!uriImagen.isNullOrBlank()) {
-                    "$comentariosTecnico [📷 Evidencia adjunta: ${uriImagen.substringAfterLast("/")}]"
-                } else {
-                    comentariosTecnico
-                }
+    fun responderCotizacion(ordenId: String, aprobada: Boolean) {
+        val nuevoEstado = if (aprobada) "APROBADO" else "RECHAZADO"
+        val tokenPrueba = "token-academico-simulacion"
 
-                db.ordenDao().responderTecnicoConCotizacion(
-                    ordenId = ordenId,
-                    nuevoEstado = "COTIZADO_PENDIENTE",
-                    diagnostico = detalleFinal,
-                    monto = monto,
-                    detalle = detalleCotizacion
-                )
-            } catch (e: Exception) {
-                e.printStackTrace()
+        cotizacionesMap[ordenId]?.let { cot ->
+            cotizacionesMap[ordenId] = cot.copy(estadoAutorizacion = nuevoEstado)
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val exitoRemoto = repository.responderCotizacionRemota(
+                token = tokenPrueba,
+                ordenId = ordenId,
+                nuevoEstado = nuevoEstado
+            )
+            if (!exitoRemoto) {
+                repository.actualizarEstadoOrden(ordenId, nuevoEstado)
             }
         }
     }
 
-    fun responderCotizacion(ordenId: String, aprobada: Boolean) {
-        val nuevoEstado = if (aprobada) "APROBADO" else "RECHAZADO"
+    // Funciones restauradas para AppNavigation
+    fun dispararNotificacionNuevaSolicitud(equipoId: String, descripcion: String) {
+        _notificacionTecnico.value = "Nueva solicitud recibida para equipo $equipoId: $descripcion"
+    }
+
+    fun limpiarNotificacion() {
+        _notificacionTecnico.value = null
+    }
+
+    // 3. ACTUALIZADO: Firma con los 5 parámetros que pide AppNavigation.kt
+    fun responderSolicitudComoTecnico(
+        ordenId: String,
+        diagnostico: String,
+        monto: Double,
+        detalles: String,
+        uriFoto: String? = null
+    ) {
+        val tokenPrueba = "token-academico-simulacion"
+        cotizacionesMap[ordenId] = Cotizacion(
+            id = "COT-$ordenId",
+            montoTotal = monto,
+            detalleServicios = detalles,
+            requiereAutorizacion = true,
+            estadoAutorizacion = "PENDIENTE"
+        )
+
+        if (!uriFoto.isNullOrBlank()) {
+            val nuevaEvidencia = Evidencia(
+                id = "EV-${System.currentTimeMillis()}",
+                ordenId = ordenId,
+                urlImagenOPathLocal = uriFoto,
+                descripcion = "Evidencia técnica adjunta",
+                fechaRegistro = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).format(Date())
+            )
+            val listaActual = evidenciasMap[ordenId]?.toMutableList() ?: mutableListOf()
+            listaActual.add(nuevaEvidencia)
+            evidenciasMap[ordenId] = listaActual
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                db.ordenDao().actualizarEstado(ordenId, nuevoEstado)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            val exitoRemoto = repository.enviarCotizacionTecnico(
+                token = tokenPrueba,
+                ordenId = ordenId,
+                diagnostico = diagnostico,
+                montoTotal = monto,
+                detallesServicios = detalles
+            )
+            if (!exitoRemoto) {
+                // Respaldo local en Room
+                val dao = AppDatabase.getDatabase(getApplication()).ordenDao()
+                val actual = _ordenes.value.find { it.id == ordenId }
+                if (actual != null) {
+                    dao.insertarOrden(
+                        OrdenEntity(
+                            id = actual.id,
+                            equipoId = actual.equipoId,
+                            clienteId = actual.clienteId,
+                            fechaIngreso = actual.fechaIngreso,
+                            estado = "COTIZADO_PENDIENTE",
+                            diagnostico = diagnostico
+                        )
+                    )
+                }
             }
         }
     }
