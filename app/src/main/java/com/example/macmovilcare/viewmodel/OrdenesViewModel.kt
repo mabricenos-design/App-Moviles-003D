@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.macmovilcare.data.local.AppDatabase
 import com.example.macmovilcare.data.local.entity.OrdenEntity
 import com.example.macmovilcare.data.remote.RetrofitClient
+import com.example.macmovilcare.data.remote.RetrofitIndicadoresClient // <-- IMPORT AGREGADO
 import com.example.macmovilcare.data.repository.MCmovilRepository
 import com.example.macmovilcare.model.Cotizacion
 import com.example.macmovilcare.model.EstadoOrden
@@ -19,6 +20,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
 
 class OrdenesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -37,6 +39,10 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private val _notificacionTecnico = MutableStateFlow<String?>(null)
     val notificacionTecnico: StateFlow<String?> = _notificacionTecnico.asStateFlow()
 
+    // Estado para el valor del dólar desde la API externa
+    private val _valorDolar = MutableStateFlow<Double>(950.0) // Valor respaldo offline
+    val valorDolar: StateFlow<Double> = _valorDolar.asStateFlow()
+
     // Mapa local en memoria para conservar cotizaciones generadas en la sesión
     private val cotizacionesMap = mutableMapOf<String, Cotizacion>(
         "101" to Cotizacion(
@@ -53,6 +59,7 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         sincronizarYObservarOrdenes()
+        cargarValorDolar()
     }
 
     private fun sincronizarYObservarOrdenes() {
@@ -197,6 +204,19 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                         )
                     )
                 }
+            }
+        }
+    }
+
+    // <-- FUNCIÓN AGREGADA AL FINAL DE LA CLASE
+    fun cargarValorDolar() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = RetrofitIndicadoresClient.apiService.obtenerIndicadores()
+                _valorDolar.value = response.dolar.valor
+            } catch (e: Exception) {
+                // Si el dispositivo está offline, mantiene el valor de respaldo sin caer
+                e.printStackTrace()
             }
         }
     }

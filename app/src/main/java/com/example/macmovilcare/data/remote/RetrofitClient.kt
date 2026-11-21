@@ -3,6 +3,7 @@ package com.example.macmovilcare.data.remote
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
+
 object RetrofitClient {
 
     // Si usas un servidor local en tu PC con el emulador de Android, usa "http://10.0.2.2:8080/api/"

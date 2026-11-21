@@ -93,10 +93,12 @@ fun AppNavigation(
         // 3. Detalle de Orden
         composable(route = Pantalla.DetalleOrden.ruta) {
             val ordenSeleccionada by ordenesViewModel.ordenSeleccionada.collectAsState()
+            val valorDolar by ordenesViewModel.valorDolar.collectAsState()
 
             DetalleOrdenScreen(
                 orden = ordenSeleccionada,
                 rolUsuario = rolActivo,
+                valorDolar = valorDolar,
                 onAprobarCotizacion = {
                     ordenSeleccionada?.let { orden ->
                         ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = true)

@@ -37,6 +37,7 @@ import java.util.Locale
 fun DetalleOrdenScreen(
     orden: OrdenTrabajo?,
     rolUsuario: RolUsuario = RolUsuario.CLIENTE,
+    valorDolar: Double = 950.0,
     onAprobarCotizacion: () -> Unit,
     onRechazarCotizacion: () -> Unit,
     onResponderComoTecnico: (ordenId: String, comentarios: String, monto: Double, detalleCotizacion: String, uriFoto: String?) -> Unit,
@@ -199,6 +200,16 @@ fun DetalleOrdenScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
 
+                            // Conversión en tiempo real usando la API externa (mindicador.cl)
+                            val montoNumPreview = montoTexto.replace(".", "").replace(",", "").toDoubleOrNull() ?: 0.0
+                            val enDolaresPreview = if (valorDolar > 0) montoNumPreview / valorDolar else 0.0
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "💱 Dólar hoy (API): $${valorDolar.toInt()} CLP | Equivalente: US$ ${String.format(Locale.US, "%.2f", enDolaresPreview)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
                             Spacer(modifier = Modifier.height(12.dp))
 
                             CampoTextoCustom(
@@ -313,12 +324,18 @@ fun DetalleOrdenScreen(
                 // Tarjeta de Cotización
                 orden.cotizacion?.let { cotizacion ->
                     val montoFormateado = formatoMoneda.format(cotizacion.montoTotal)
+                    val montoEnUsd = if (valorDolar > 0) cotizacion.montoTotal / valorDolar else 0.0
 
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Cotización de Reparación", style = MaterialTheme.typography.titleMedium)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Monto Total: $$montoFormateado CLP")
+                            Text(
+                                text = "Referencia USD: US$ ${String.format(Locale.US, "%.2f", montoEnUsd)} (Dólar API: $${valorDolar.toInt()} CLP)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                             Text("Detalle: ${cotizacion.detalleServicios}")
 
                             Spacer(modifier = Modifier.height(8.dp))
