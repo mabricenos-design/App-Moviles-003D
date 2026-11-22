@@ -1,12 +1,15 @@
 package com.example.macmovilcare.viewmodel
 
 import android.app.Application
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.macmovilcare.data.local.AppDatabase
 import com.example.macmovilcare.data.local.entity.OrdenEntity
 import com.example.macmovilcare.data.remote.RetrofitClient
-import com.example.macmovilcare.data.remote.RetrofitIndicadoresClient // <-- IMPORT AGREGADO
+import com.example.macmovilcare.data.remote.RetrofitIndicadoresClient
 import com.example.macmovilcare.data.repository.MCmovilRepository
 import com.example.macmovilcare.model.Cotizacion
 import com.example.macmovilcare.model.EstadoOrden
@@ -29,6 +32,9 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         MCmovilRepository(ordenDao = dao, apiService = RetrofitClient.apiService)
     }
 
+    // Preferencias locales para recordar el último dólar descargado incluso tras cerrar la app
+    private val prefs = application.getSharedPreferences("mcmovil_cache", Context.MODE_PRIVATE)
+
     private val _ordenes = MutableStateFlow<List<OrdenTrabajo>>(emptyList())
     val ordenes: StateFlow<List<OrdenTrabajo>> = _ordenes.asStateFlow()
 
@@ -39,8 +45,10 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private val _notificacionTecnico = MutableStateFlow<String?>(null)
     val notificacionTecnico: StateFlow<String?> = _notificacionTecnico.asStateFlow()
 
-    // Estado para el valor del dólar desde la API externa
-    private val _valorDolar = MutableStateFlow<Double>(950.0) // Valor respaldo offline
+    // Arranca con el último valor real guardado en disco (o 950.0 solo si nunca tuvo internet)
+    private val _valorDolar = MutableStateFlow<Double>(
+        prefs.getFloat("ultimo_dolar", 950.0f).toDouble()
+    )
     val valorDolar: StateFlow<Double> = _valorDolar.asStateFlow()
 
     // Mapa local en memoria para conservar cotizaciones generadas en la sesión
@@ -57,9 +65,22 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     // 1. AGREGADO: Mapa local en memoria para conservar las evidencias (fotos) subidas por el técnico
     private val evidenciasMap = mutableMapOf<String, List<Evidencia>>()
 
+    // Listener de conectividad para detectar cuando vuelve el internet
+    private val connectivityManager = application.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            cargarValorDolar()
+        }
+    }
+
     init {
         sincronizarYObservarOrdenes()
         cargarValorDolar()
+        try {
+            connectivityManager.registerDefaultNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     private fun sincronizarYObservarOrdenes() {
@@ -208,16 +229,26 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // <-- FUNCIÓN AGREGADA AL FINAL DE LA CLASE
     fun cargarValorDolar() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response = RetrofitIndicadoresClient.apiService.obtenerIndicadores()
-                _valorDolar.value = response.dolar.valor
+                val nuevoValor = response.dolar.valor
+                _valorDolar.value = nuevoValor
+                prefs.edit().putFloat("ultimo_dolar", nuevoValor.toFloat()).apply()
             } catch (e: Exception) {
-                // Si el dispositivo está offline, mantiene el valor de respaldo sin caer
+                // Si el dispositivo está offline, mantiene el último valor persistido sin caer
                 e.printStackTrace()
             }
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        try {
+            connectivityManager.unregisterNetworkCallback(networkCallback)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }
