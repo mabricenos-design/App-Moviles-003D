@@ -1,11 +1,13 @@
 package com.example.macmovilcare.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -24,15 +26,50 @@ fun HomeScreen(
     onDescartarNotificacion: () -> Unit = {},
     onOrdenClick: (String) -> Unit,
     onNuevaSolicitudClick: () -> Unit,
+    onEliminarOrden: (String) -> Unit = {},
     onCerrarSesion: () -> Unit
 ) {
+    var ordenAEliminar by remember { mutableStateOf<OrdenTrabajo?>(null) }
+    var filtroEstadoAdmin by remember { mutableStateOf<EstadoOrden?>(null) }
+
+    // Diálogo de confirmación antes de eliminar orden/estado
+    ordenAEliminar?.let { orden ->
+        AlertDialog(
+            onDismissRequest = { ordenAEliminar = null },
+            title = { Text("Eliminar Orden #${orden.id}") },
+            text = {
+                Text("¿Estás seguro de que deseas eliminar permanentemente esta orden y su estado actual (${orden.estado.name})?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onEliminarOrden(orden.id)
+                        ordenAEliminar = null
+                    }
+                ) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { ordenAEliminar = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
     // 1. Filtrado de órdenes por rol
     val ordenesFiltradas = when (rolUsuario) {
         RolUsuario.CLIENTE -> ordenes
         RolUsuario.TECNICO -> ordenes.filter {
-            it.estado == EstadoOrden.INGRESADO || it.estado == EstadoOrden.EN_DIAGNOSTICO || it.estado == EstadoOrden.EN_REPARACION || it.estado == EstadoOrden.COTIZADO_PENDIENTE
+            it.estado == EstadoOrden.INGRESADO ||
+                    it.estado == EstadoOrden.EN_DIAGNOSTICO ||
+                    it.estado == EstadoOrden.EN_REPARACION ||
+                    it.estado == EstadoOrden.COTIZADO_PENDIENTE
         }
-        RolUsuario.ADMINISTRADOR -> ordenes
+        RolUsuario.ADMINISTRADOR -> {
+            if (filtroEstadoAdmin == null) ordenes else ordenes.filter { it.estado == filtroEstadoAdmin }
+        }
     }
 
     // Para el Cliente: separamos las pendientes respondidas por el técnico para ponerlas ARRIBA
@@ -73,6 +110,62 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // PANEL DE RESUMEN Y FILTROS EXCLUSIVO ADMINISTRADOR
+            if (rolUsuario == RolUsuario.ADMINISTRADOR) {
+                val total = ordenes.size
+                val pendientes = ordenes.count { it.estado == EstadoOrden.INGRESADO || it.estado == EstadoOrden.COTIZADO_PENDIENTE }
+                val enTaller = ordenes.count { it.estado == EstadoOrden.APROBADO || it.estado == EstadoOrden.EN_REPARACION }
+                val finalizados = ordenes.count { it.estado == EstadoOrden.LISTO_PARA_ENTREGA || it.estado == EstadoOrden.ENTREGADO }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f))
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("📊 Resumen Operativo del Taller", style = MaterialTheme.typography.titleSmall)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Total: $total", style = MaterialTheme.typography.bodySmall)
+                            Text("Pendientes: $pendientes", style = MaterialTheme.typography.bodySmall)
+                            Text("En Taller: $enTaller", style = MaterialTheme.typography.bodySmall)
+                            Text("Finalizados: $finalizados", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                // Chips de filtro rápido por estado
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    FilterChip(
+                        selected = filtroEstadoAdmin == null,
+                        onClick = { filtroEstadoAdmin = null },
+                        label = { Text("Todos (${ordenes.size})") }
+                    )
+                    EstadoOrden.values().forEach { estadoOpcion ->
+                        val cantidad = ordenes.count { it.estado == estadoOpcion }
+                        if (cantidad > 0) {
+                            FilterChip(
+                                selected = filtroEstadoAdmin == estadoOpcion,
+                                onClick = {
+                                    filtroEstadoAdmin = if (filtroEstadoAdmin == estadoOpcion) null else estadoOpcion
+                                },
+                                label = { Text("${estadoOpcion.name.replace("_", " ")} ($cantidad)") }
+                            )
+                        }
+                    }
+                }
+            }
+
             // BANNER DE NOTIFICACIÓN PARA EL TÉCNICO
             if (rolUsuario == RolUsuario.TECNICO && mensajeNotificacion != null) {
                 Card(
@@ -103,7 +196,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No hay órdenes disponibles para este perfil.")
+                    Text("No hay órdenes disponibles para este perfil o filtro.")
                 }
             } else {
                 LazyColumn(
@@ -111,7 +204,6 @@ fun HomeScreen(
                         .fillMaxSize()
                         .padding(horizontal = 16.dp)
                 ) {
-                    // --- SECCIÓN SUPERIOR: PENDIENTES DE RESPUESTA PARA EL CLIENTE ---
                     if (rolUsuario == RolUsuario.CLIENTE && pendientesCliente.isNotEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(8.dp))
@@ -160,7 +252,6 @@ fun HomeScreen(
                             )
                         }
                     } else {
-                        // Lista estándar para Técnico, Admin o Cliente sin pendientes
                         items(ordenesFiltradas) { orden ->
                             TarjetaOrden(
                                 orden = orden,
@@ -169,7 +260,10 @@ fun HomeScreen(
                                 } else {
                                     "Equipo #${orden.equipoId}"
                                 },
-                                onClick = { onOrdenClick(orden.id) }
+                                onClick = { onOrdenClick(orden.id) },
+                                onEliminarClick = if (rolUsuario == RolUsuario.ADMINISTRADOR) {
+                                    { ordenAEliminar = orden }
+                                } else null
                             )
                         }
                     }

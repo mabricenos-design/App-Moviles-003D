@@ -82,6 +82,7 @@ fun AppNavigation(
                     solicitudViewModel.limpiarFormulario()
                     navController.navigate(route = Pantalla.CrearSolicitud.ruta)
                 },
+                onEliminarOrden = ordenesViewModel::eliminarOrden,
                 onCerrarSesion = {
                     navController.navigate(route = Pantalla.Login.ruta) {
                         popUpTo(0) { inclusive = true }
@@ -113,6 +114,8 @@ fun AppNavigation(
                     ordenesViewModel.responderSolicitudComoTecnico(ordenId, comentarios, monto, detalle, uriFoto)
                     navController.popBackStack()
                 },
+                onCambiarEstadoAdmin = ordenesViewModel::cambiarEstadoOrdenAdmin,
+                onEliminarOrdenAdmin = ordenesViewModel::eliminarOrden,
                 onVolver = {
                     navController.popBackStack()
                 }

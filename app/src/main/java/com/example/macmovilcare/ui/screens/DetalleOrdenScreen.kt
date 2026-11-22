@@ -41,6 +41,8 @@ fun DetalleOrdenScreen(
     onAprobarCotizacion: () -> Unit,
     onRechazarCotizacion: () -> Unit,
     onResponderComoTecnico: (ordenId: String, comentarios: String, monto: Double, detalleCotizacion: String, uriFoto: String?) -> Unit,
+    onCambiarEstadoAdmin: (ordenId: String, nuevoEstado: EstadoOrden) -> Unit = { _, _ -> },
+    onEliminarOrdenAdmin: (ordenId: String) -> Unit = {},
     onVolver: () -> Unit
 ) {
     val context = LocalContext.current
@@ -57,7 +59,6 @@ fun DetalleOrdenScreen(
 
     val formatoMoneda = remember { NumberFormat.getIntegerInstance(Locale("es", "CL")) }
 
-    // 1. Lanzador de la Cámara
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap: Bitmap? ->
@@ -67,7 +68,6 @@ fun DetalleOrdenScreen(
         }
     }
 
-    // 2. Solicitud interactiva del permiso de cámara
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { concedido: Boolean ->
@@ -82,7 +82,6 @@ fun DetalleOrdenScreen(
         }
     }
 
-    // 3. Lanzador de la Galería
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -92,7 +91,6 @@ fun DetalleOrdenScreen(
         }
     }
 
-    // Función segura para pedir permiso y abrir la cámara
     fun abrirCamaraConPermiso() {
         val permiso = Manifest.permission.CAMERA
         val tienePermiso = ContextCompat.checkSelfPermission(context, permiso) == PackageManager.PERMISSION_GRANTED
@@ -200,7 +198,6 @@ fun DetalleOrdenScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            // Conversión en tiempo real usando la API externa (mindicador.cl)
                             val montoNumPreview = montoTexto.replace(".", "").replace(",", "").toDoubleOrNull() ?: 0.0
                             val enDolaresPreview = if (valorDolar > 0) montoNumPreview / valorDolar else 0.0
                             Spacer(modifier = Modifier.height(4.dp))
@@ -388,6 +385,84 @@ fun DetalleOrdenScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Tipo: ${mantencion.tipoMantencion}")
                             Text("Fecha Sugerida: ${mantencion.fechaSugerida}")
+                        }
+                    }
+                }
+
+                // PANEL DE CONTROL EXCLUSIVO DEL ADMINISTRADOR
+                if (rolUsuario == RolUsuario.ADMINISTRADOR) {
+                    var menuEstadosExpandido by remember { mutableStateOf(false) }
+                    var confirmarBorradoDetalle by remember { mutableStateOf(false) }
+
+                    if (confirmarBorradoDetalle) {
+                        AlertDialog(
+                            onDismissRequest = { confirmarBorradoDetalle = false },
+                            title = { Text("Eliminar Orden #${orden.id}") },
+                            text = { Text("Esta acción eliminará la orden y su historial de estados. ¿Continuar?") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    confirmarBorradoDetalle = false
+                                    onEliminarOrdenAdmin(orden.id)
+                                    onVolver()
+                                }) {
+                                    Text("Sí, eliminar", color = MaterialTheme.colorScheme.error)
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { confirmarBorradoDetalle = false }) {
+                                    Text("Cancelar")
+                                }
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("🛡️ Administración de Estado y Orden", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                text = "Como administrador puedes cambiar el estado del flujo o eliminar esta orden.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedButton(
+                                    onClick = { menuEstadosExpandido = true },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Cambiar Estado (Actual: ${orden.estado.name})")
+                                }
+
+                                DropdownMenu(
+                                    expanded = menuEstadosExpandido,
+                                    onDismissRequest = { menuEstadosExpandido = false }
+                                ) {
+                                    EstadoOrden.values().forEach { estadoOpcion ->
+                                        DropdownMenuItem(
+                                            text = { Text(estadoOpcion.name.replace("_", " ")) },
+                                            onClick = {
+                                                menuEstadosExpandido = false
+                                                onCambiarEstadoAdmin(orden.id, estadoOpcion)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = { confirmarBorradoDetalle = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("🗑️ Eliminar Orden / Estado", color = MaterialTheme.colorScheme.onError)
+                            }
                         }
                     }
                 }

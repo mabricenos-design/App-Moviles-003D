@@ -6,6 +6,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,7 +18,8 @@ import com.example.macmovilcare.model.OrdenTrabajo
 fun TarjetaOrden(
     orden: OrdenTrabajo,
     nombreEquipo: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onEliminarClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = Modifier
@@ -38,7 +40,18 @@ fun TarjetaOrden(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-                EstadoBadge(estado = orden.estado)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    EstadoBadge(estado = orden.estado)
+                    if (onEliminarClick != null) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        TextButton(
+                            onClick = onEliminarClick,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text("🗑️", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

@@ -30,4 +30,8 @@ interface OrdenesDao {
         monto: Double,
         detalle: String
     )
+
+    // NUEVO: Eliminar una orden por ID
+    @Query("DELETE FROM ordenes_trabajo WHERE id = :ordenId")
+    suspend fun eliminarOrden(ordenId: String)
 }

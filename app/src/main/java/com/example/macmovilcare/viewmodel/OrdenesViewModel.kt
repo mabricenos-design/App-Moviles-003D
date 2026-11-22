@@ -24,7 +24,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-
 class OrdenesViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: MCmovilRepository by lazy {
@@ -32,7 +31,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         MCmovilRepository(ordenDao = dao, apiService = RetrofitClient.apiService)
     }
 
-    // Preferencias locales para recordar el último dólar descargado incluso tras cerrar la app
     private val prefs = application.getSharedPreferences("mcmovil_cache", Context.MODE_PRIVATE)
 
     private val _ordenes = MutableStateFlow<List<OrdenTrabajo>>(emptyList())
@@ -41,17 +39,14 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     private val _ordenSeleccionada = MutableStateFlow<OrdenTrabajo?>(null)
     val ordenSeleccionada: StateFlow<OrdenTrabajo?> = _ordenSeleccionada.asStateFlow()
 
-    // Estados restaurados para el flujo del Técnico y Notificaciones
     private val _notificacionTecnico = MutableStateFlow<String?>(null)
     val notificacionTecnico: StateFlow<String?> = _notificacionTecnico.asStateFlow()
 
-    // Arranca con el último valor real guardado en disco (o 950.0 solo si nunca tuvo internet)
     private val _valorDolar = MutableStateFlow<Double>(
         prefs.getFloat("ultimo_dolar", 950.0f).toDouble()
     )
     val valorDolar: StateFlow<Double> = _valorDolar.asStateFlow()
 
-    // Mapa local en memoria para conservar cotizaciones generadas en la sesión
     private val cotizacionesMap = mutableMapOf<String, Cotizacion>(
         "101" to Cotizacion(
             id = "COT-101",
@@ -62,10 +57,8 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         )
     )
 
-    // 1. AGREGADO: Mapa local en memoria para conservar las evidencias (fotos) subidas por el técnico
     private val evidenciasMap = mutableMapOf<String, List<Evidencia>>()
 
-    // Listener de conectividad para detectar cuando vuelve el internet
     private val connectivityManager = application.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
@@ -123,7 +116,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                                     .getOrDefault(EstadoOrden.INGRESADO),
                                 diagnostico = entidad.diagnostico,
                                 cotizacion = cotizacionesMap[entidad.id],
-                                // 2. AGREGADO: Se asignan las evidencias guardadas
                                 evidencias = evidenciasMap[entidad.id] ?: emptyList()
                             )
                         }
@@ -162,7 +154,34 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    // Funciones restauradas para AppNavigation
+    fun eliminarOrden(ordenId: String) {
+        val tokenPrueba = "token-academico-simulacion"
+        cotizacionesMap.remove(ordenId)
+        evidenciasMap.remove(ordenId)
+
+        if (_ordenSeleccionada.value?.id == ordenId) {
+            _ordenSeleccionada.value = null
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.eliminarOrden(token = tokenPrueba, ordenId = ordenId)
+        }
+    }
+
+    fun cambiarEstadoOrdenAdmin(ordenId: String, nuevoEstado: EstadoOrden) {
+        val tokenPrueba = "token-academico-simulacion"
+        viewModelScope.launch(Dispatchers.IO) {
+            val exitoRemoto = repository.responderCotizacionRemota(
+                token = tokenPrueba,
+                ordenId = ordenId,
+                nuevoEstado = nuevoEstado.name
+            )
+            if (!exitoRemoto) {
+                repository.actualizarEstadoOrden(ordenId, nuevoEstado.name)
+            }
+        }
+    }
+
     fun dispararNotificacionNuevaSolicitud(equipoId: String, descripcion: String) {
         _notificacionTecnico.value = "Nueva solicitud recibida para equipo $equipoId: $descripcion"
     }
@@ -171,7 +190,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         _notificacionTecnico.value = null
     }
 
-    // 3. ACTUALIZADO: Firma con los 5 parámetros que pide AppNavigation.kt
     fun responderSolicitudComoTecnico(
         ordenId: String,
         diagnostico: String,
@@ -210,7 +228,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                 detallesServicios = detalles
             )
             if (!exitoRemoto) {
-                // Respaldo local en Room
                 val dao = AppDatabase.getDatabase(getApplication()).ordenDao()
                 val actual = _ordenes.value.find { it.id == ordenId }
                 if (actual != null) {
@@ -237,7 +254,6 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                 _valorDolar.value = nuevoValor
                 prefs.edit().putFloat("ultimo_dolar", nuevoValor.toFloat()).apply()
             } catch (e: Exception) {
-                // Si el dispositivo está offline, mantiene el último valor persistido sin caer
                 e.printStackTrace()
             }
         }

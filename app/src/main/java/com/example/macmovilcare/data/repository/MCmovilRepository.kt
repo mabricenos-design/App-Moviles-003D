@@ -38,6 +38,17 @@ class MCmovilRepository(
     suspend fun actualizarEstadoOrden(ordenId: String, nuevoEstado: String) {
         ordenDao.actualizarEstado(ordenId, nuevoEstado)
     }
+
+    suspend fun eliminarOrden(token: String, ordenId: String) {
+        try {
+            apiService.eliminarOrden("Bearer $token", ordenId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            ordenDao.eliminarOrden(ordenId)
+        }
+    }
+
     // --- NUEVAS FUNCIONES PARA CONSUMIR LA API REST ---
 
     suspend fun login(correo: String, clave: String): Response<LoginResponse> {
@@ -95,7 +106,6 @@ class MCmovilRepository(
             val response = apiService.actualizarEstadoOrden("Bearer $token", ordenId, request)
 
             if (response.isSuccessful) {
-                // Actualizamos el estado localmente en Room
                 ordenDao.actualizarEstado(ordenId, nuevoEstado)
                 true
             } else {
@@ -144,4 +154,3 @@ class MCmovilRepository(
         }
     }
 }
-
