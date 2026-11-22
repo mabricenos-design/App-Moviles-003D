@@ -1,14 +1,12 @@
 package com.example.macmovilcare.navigation
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.macmovilcare.ui.screens.CargarEvidenciaScreen
+import androidx.navigation.navArgument
 import com.example.macmovilcare.ui.screens.CrearSolicitudScreen
 import com.example.macmovilcare.ui.screens.DetalleOrdenScreen
 import com.example.macmovilcare.ui.screens.HomeScreen
@@ -17,119 +15,87 @@ import com.example.macmovilcare.viewmodel.AuthViewModel
 import com.example.macmovilcare.viewmodel.OrdenesViewModel
 import com.example.macmovilcare.viewmodel.SolicitudViewModel
 
-sealed class Pantalla(val ruta: String) {
-    object Login : Pantalla(ruta = "login")
-    object Home : Pantalla(ruta = "home")
-    object DetalleOrden : Pantalla(ruta = "detalle_orden/{ordenId}") {
-        fun crearRuta(ordenId: String) = "detalle_orden/$ordenId"
-    }
-    object CrearSolicitud : Pantalla(ruta = "crear_solicitud")
-    object CargarEvidencia : Pantalla(ruta = "cargar_evidencia/{ordenId}") {
-        fun crearRuta(ordenId: String) = "cargar_evidencia/$ordenId"
-    }
-}
-
 @Composable
 fun AppNavigation(
-    navController: NavHostController = rememberNavController(),
+    esPantallaAncha: Boolean = false,
     authViewModel: AuthViewModel = viewModel(),
     ordenesViewModel: OrdenesViewModel = viewModel(),
-    solicitudViewModel: SolicitudViewModel = viewModel(),
-    esPantallaAncha: Boolean = false
+    solicitudViewModel: SolicitudViewModel = viewModel()
 ) {
+    val navController = rememberNavController()
+
+    val loginState by authViewModel.uiState.collectAsState()
     val rolActivo by authViewModel.rolActivo.collectAsState()
-    val notificacionTecnico by ordenesViewModel.notificacionTecnico.collectAsState()
+
+    val ordenes by ordenesViewModel.ordenes.collectAsState()
+    val mensajeNotificacion by ordenesViewModel.notificacionTecnico.collectAsState()
+    val valorDolar by ordenesViewModel.valorDolar.collectAsState()
+    val urlsQrPorOrden by ordenesViewModel.urlsQrPorOrden.collectAsState()
+    val resultadoEscaneoQr by ordenesViewModel.resultadoEscaneoQr.collectAsState()
+
+    val solicitudState by solicitudViewModel.uiState.collectAsState()
+
+    var nombreUsuarioActual by remember { mutableStateOf("Usuario") }
 
     NavHost(
         navController = navController,
-        startDestination = Pantalla.Login.ruta
+        startDestination = "login"
     ) {
-        // 1. Login
-        composable(route = Pantalla.Login.ruta) {
-            val loginState by authViewModel.uiState.collectAsState()
-
+        composable("login") {
             LoginScreen(
                 state = loginState,
-                rolSeleccionado = rolActivo,
-                onRolSeleccionado = authViewModel::seleccionarRolPrueba,
-                onCorreoChange = authViewModel::onCorreoChange,
-                onClaveChange = authViewModel::onClaveChange,
-                onLoginClick = {
-                    authViewModel.iniciarSesion {
-                        navController.navigate(route = Pantalla.Home.ruta) {
-                            popUpTo(route = Pantalla.Login.ruta) { inclusive = true }
-                        }
+                onCorreoChange = { authViewModel.onCorreoChange(it) },
+                onClaveChange = { authViewModel.onClaveChange(it) },
+                onLoginExitoso = { rolDetectado, nombreExtraido ->
+                    authViewModel.seleccionarRolPrueba(rolDetectado)
+                    nombreUsuarioActual = nombreExtraido
+                    navController.navigate("home") {
+                        popUpTo("login") { inclusive = true }
                     }
                 }
             )
         }
 
-        // 2. Home
-        composable(route = Pantalla.Home.ruta) {
-            val listaOrdenes by ordenesViewModel.ordenes.collectAsState()
-
+        composable("home") {
             HomeScreen(
-                ordenes = listaOrdenes,
+                ordenes = ordenes,
                 rolUsuario = rolActivo,
+                nombreUsuario = nombreUsuarioActual,
                 esPantallaAncha = esPantallaAncha,
-                mensajeNotificacion = notificacionTecnico,
-                onDescartarNotificacion = ordenesViewModel::limpiarNotificacion,
+                mensajeNotificacion = mensajeNotificacion,
+                resultadoEscaneoQr = resultadoEscaneoQr,
+                onDescartarNotificacion = { ordenesViewModel.limpiarNotificacion() },
+                onQrEscaneadoPorTecnico = { qrLeido ->
+                    ordenesViewModel.procesarQrEscaneadoPorTecnico(qrLeido)
+                },
+                onLimpiarResultadoQr = {
+                    ordenesViewModel.limpiarResultadoEscaneoQr()
+                },
                 onOrdenClick = { ordenId ->
                     ordenesViewModel.seleccionarOrden(ordenId)
-                    navController.navigate(route = Pantalla.DetalleOrden.crearRuta(ordenId))
+                    navController.navigate("detalle/$ordenId")
                 },
                 onNuevaSolicitudClick = {
                     solicitudViewModel.limpiarFormulario()
-                    navController.navigate(route = Pantalla.CrearSolicitud.ruta)
+                    navController.navigate("crear_solicitud")
                 },
-                onEliminarOrden = ordenesViewModel::eliminarOrden,
+                onEliminarOrden = { ordenId ->
+                    ordenesViewModel.eliminarOrden(ordenId)
+                },
                 onCerrarSesion = {
-                    navController.navigate(route = Pantalla.Login.ruta) {
-                        popUpTo(0) { inclusive = true }
+                    authViewModel.onClaveChange("")
+                    navController.navigate("login") {
+                        popUpTo("home") { inclusive = true }
                     }
                 }
             )
         }
 
-        // 3. Detalle de Orden
-        composable(route = Pantalla.DetalleOrden.ruta) {
-            val ordenSeleccionada by ordenesViewModel.ordenSeleccionada.collectAsState()
-            val valorDolar by ordenesViewModel.valorDolar.collectAsState()
-
-            DetalleOrdenScreen(
-                orden = ordenSeleccionada,
-                rolUsuario = rolActivo,
-                valorDolar = valorDolar,
-                onAprobarCotizacion = {
-                    ordenSeleccionada?.let { orden ->
-                        ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = true)
-                    }
-                },
-                onRechazarCotizacion = {
-                    ordenSeleccionada?.let { orden ->
-                        ordenesViewModel.responderCotizacion(ordenId = orden.id, aprobada = false)
-                    }
-                },
-                onResponderComoTecnico = { ordenId, comentarios, monto, detalle, uriFoto ->
-                    ordenesViewModel.responderSolicitudComoTecnico(ordenId, comentarios, monto, detalle, uriFoto)
-                    navController.popBackStack()
-                },
-                onCambiarEstadoAdmin = ordenesViewModel::cambiarEstadoOrdenAdmin,
-                onEliminarOrdenAdmin = ordenesViewModel::eliminarOrden,
-                onVolver = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        // 4. Crear Solicitud (Exclusivo Cliente)
-        composable(route = Pantalla.CrearSolicitud.ruta) {
-            val solicitudState by solicitudViewModel.uiState.collectAsState()
-
+        composable("crear_solicitud") {
             CrearSolicitudScreen(
                 state = solicitudState,
-                onEquipoIdChange = solicitudViewModel::onEquipoIdChange,
-                onDescripcionChange = solicitudViewModel::onDescripcionChange,
+                onEquipoIdChange = { solicitudViewModel.onEquipoIdChange(it) },
+                onDescripcionChange = { solicitudViewModel.onDescripcionChange(it) },
                 onEnviarSolicitud = {
                     solicitudViewModel.enviarSolicitud { equipoId, descripcion ->
                         ordenesViewModel.dispararNotificacionNuevaSolicitud(equipoId, descripcion)
@@ -142,15 +108,42 @@ fun AppNavigation(
             )
         }
 
-        // 5. Cargar Evidencia
-        composable(route = Pantalla.CargarEvidencia.ruta) { backStackEntry ->
-            val ordenId = backStackEntry.arguments?.getString("ordenId") ?: ""
-            CargarEvidenciaScreen(
-                ordenId = ordenId,
-                onGuardarEvidencia = { _, _, _ ->
-                    navController.popBackStack()
+        composable(
+            route = "detalle/{ordenId}",
+            arguments = listOf(navArgument("ordenId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val ordenId = backStackEntry.arguments?.getString("ordenId")
+            val ordenSeleccionada = ordenes.find { it.id == ordenId }
+
+            DetalleOrdenScreen(
+                orden = ordenSeleccionada,
+                rolUsuario = rolActivo,
+                valorDolar = valorDolar,
+                urlQrRetiro = ordenId?.let { urlsQrPorOrden[it] },
+                onAprobarCotizacion = {
+                    ordenId?.let { ordenesViewModel.responderCotizacion(it, true) }
                 },
-                onVolver = { navController.popBackStack() }
+                onRechazarCotizacion = {
+                    ordenId?.let { ordenesViewModel.responderCotizacion(it, false) }
+                },
+                onResponderComoTecnico = { id, comentarios, monto, detalle, uriFoto ->
+                    ordenesViewModel.responderSolicitudComoTecnico(
+                        ordenId = id,
+                        diagnostico = comentarios,
+                        monto = monto,
+                        detalles = detalle,
+                        uriFoto = uriFoto
+                    )
+                },
+                onCambiarEstadoAdmin = { id, nuevoEstado ->
+                    ordenesViewModel.cambiarEstadoOrdenAdmin(id, nuevoEstado)
+                },
+                onEliminarOrdenAdmin = { id ->
+                    ordenesViewModel.eliminarOrden(id)
+                },
+                onVolver = {
+                    navController.popBackStack()
+                }
             )
         }
     }

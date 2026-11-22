@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.macmovilcare.data.local.AppDatabase
 import com.example.macmovilcare.data.local.entity.OrdenEntity
+import com.example.macmovilcare.data.remote.RetiroQrApiService
 import com.example.macmovilcare.data.remote.RetrofitClient
 import com.example.macmovilcare.data.remote.RetrofitIndicadoresClient
 import com.example.macmovilcare.data.repository.MCmovilRepository
@@ -23,6 +24,8 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+typealias MapaQrOrdenes = Map<String, String>
 
 class OrdenesViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -46,6 +49,12 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
         prefs.getFloat("ultimo_dolar", 950.0f).toDouble()
     )
     val valorDolar: StateFlow<Double> = _valorDolar.asStateFlow()
+
+    private val _urlsQrPorOrden = MutableStateFlow<MapaQrOrdenes>(emptyMap())
+    val urlsQrPorOrden: StateFlow<MapaQrOrdenes> = _urlsQrPorOrden.asStateFlow()
+
+    private val _resultadoEscaneoQr = MutableStateFlow<String?>(null)
+    val resultadoEscaneoQr: StateFlow<String?> = _resultadoEscaneoQr.asStateFlow()
 
     private val cotizacionesMap = mutableMapOf<String, Cotizacion>(
         "101" to Cotizacion(
@@ -106,19 +115,33 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
                         )
                         dao.insertarOrdenes(datosPrueba)
                     } else {
-                        _ordenes.value = entidades.map { entidad ->
+                        val listaMapeada = entidades.map { entidad ->
+                            val estadoOrden = runCatching { EstadoOrden.valueOf(entidad.estado) }
+                                .getOrDefault(EstadoOrden.INGRESADO)
+
+                            // Si la orden ya está aprobada, aseguramos su URL QR en línea inmediatamente
+                            if (estadoOrden == EstadoOrden.APROBADO ||
+                                estadoOrden == EstadoOrden.LISTO_PARA_ENTREGA ||
+                                estadoOrden == EstadoOrden.ENTREGADO
+                            ) {
+                                if (!_urlsQrPorOrden.value.containsKey(entidad.id)) {
+                                    val urlQr = RetiroQrApiService.construirUrlImagenQr(entidad.id)
+                                    _urlsQrPorOrden.value = _urlsQrPorOrden.value + (entidad.id to urlQr)
+                                }
+                            }
+
                             OrdenTrabajo(
                                 id = entidad.id,
                                 equipoId = entidad.equipoId,
                                 clienteId = entidad.clienteId,
                                 fechaIngreso = entidad.fechaIngreso,
-                                estado = runCatching { EstadoOrden.valueOf(entidad.estado) }
-                                    .getOrDefault(EstadoOrden.INGRESADO),
+                                estado = estadoOrden,
                                 diagnostico = entidad.diagnostico,
                                 cotizacion = cotizacionesMap[entidad.id],
                                 evidencias = evidenciasMap[entidad.id] ?: emptyList()
                             )
                         }
+                        _ordenes.value = listaMapeada
                         _ordenSeleccionada.value?.let { actual ->
                             _ordenSeleccionada.value = _ordenes.value.find { it.id == actual.id }
                         }
@@ -131,7 +154,33 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun seleccionarOrden(ordenId: String) {
-        _ordenSeleccionada.value = _ordenes.value.find { it.id == ordenId }
+        val encontrada = _ordenes.value.find { it.id == ordenId }
+        _ordenSeleccionada.value = encontrada
+
+        if (encontrada != null && (
+                    encontrada.estado == EstadoOrden.APROBADO ||
+                            encontrada.estado == EstadoOrden.LISTO_PARA_ENTREGA ||
+                            encontrada.estado == EstadoOrden.ENTREGADO
+                    )
+        ) {
+            val urlQr = RetiroQrApiService.construirUrlImagenQr(ordenId)
+            _urlsQrPorOrden.value = _urlsQrPorOrden.value + (ordenId to urlQr)
+        }
+
+        sincronizarQrDesdeNube(ordenId)
+    }
+
+    fun sincronizarQrDesdeNube(ordenId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val ticket = RetiroQrApiService.consultarTicketRemoto(ordenId)
+            if (ticket != null && ticket.aprobadoPorCliente) {
+                val urlQr = RetiroQrApiService.construirUrlImagenQr(ordenId, ticket.tokenRetiro)
+                _urlsQrPorOrden.value = _urlsQrPorOrden.value + (ordenId to urlQr)
+                if (ticket.retiradoConfirmado) {
+                    repository.actualizarEstadoOrden(ordenId, EstadoOrden.ENTREGADO.name)
+                }
+            }
+        }
     }
 
     fun responderCotizacion(ordenId: String, aprobada: Boolean) {
@@ -140,6 +189,12 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
 
         cotizacionesMap[ordenId]?.let { cot ->
             cotizacionesMap[ordenId] = cot.copy(estadoAutorizacion = nuevoEstado)
+        }
+
+        // Generar y mostrar el QR en pantalla de inmediato al aprobar
+        if (aprobada) {
+            val urlQrInmediata = RetiroQrApiService.construirUrlImagenQr(ordenId)
+            _urlsQrPorOrden.value = _urlsQrPorOrden.value + (ordenId to urlQrInmediata)
         }
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -151,7 +206,29 @@ class OrdenesViewModel(application: Application) : AndroidViewModel(application)
             if (!exitoRemoto) {
                 repository.actualizarEstadoOrden(ordenId, nuevoEstado)
             }
+
+            if (aprobada) {
+                val ticket = RetiroQrApiService.registrarAprobacionYGenerarTicket(ordenId)
+                val urlQr = RetiroQrApiService.construirUrlImagenQr(ordenId, ticket.tokenRetiro)
+                _urlsQrPorOrden.value = _urlsQrPorOrden.value + (ordenId to urlQr)
+            }
         }
+    }
+
+    fun procesarQrEscaneadoPorTecnico(qrContenido: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val resultado = RetiroQrApiService.validarYConfirmarRetiroPorQr(qrContenido)
+            resultado.onSuccess { ordenIdConfirmada ->
+                repository.actualizarEstadoOrden(ordenIdConfirmada, EstadoOrden.ENTREGADO.name)
+                _resultadoEscaneoQr.value = "Retiro aprobado con éxito para Orden #$ordenIdConfirmada (Estado: ENTREGADO)."
+            }.onFailure { error ->
+                _resultadoEscaneoQr.value = "Error: ${error.message}"
+            }
+        }
+    }
+
+    fun limpiarResultadoEscaneoQr() {
+        _resultadoEscaneoQr.value = null
     }
 
     fun eliminarOrden(ordenId: String) {

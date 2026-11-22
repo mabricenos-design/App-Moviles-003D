@@ -2,43 +2,31 @@ package com.example.macmovilcare.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val LightColorScheme = lightColorScheme(
-    primary = AzulPrimario,
+private val DarkTealColorScheme = darkColorScheme(
+    primary = AzulVariante,
     primaryContainer = AzulContenedor,
-    onPrimaryContainer = AzulPrimario,
+    onPrimaryContainer = Color(0xFF7CE8E2),
     secondary = AzulVariante,
     background = GrisFondo,
     surface = GrisSuperficie,
     onPrimary = Color.White,
     onBackground = TextoOscuro,
     onSurface = TextoOscuro,
-    outline = GrisBorde
-)
-
-private val DarkColorScheme = darkColorScheme(
-    primary = AzulVariante,
-    primaryContainer = Color(0xFF1E293B),
-    secondary = Color(0xFF60A5FA),
-    background = Color(0xFF0F172A),
-    surface = Color(0xFF1E293B),
-    onPrimary = Color.White,
-    onBackground = Color(0xFFF8FAFC),
-    onSurface = Color(0xFFF8FAFC)
+    outline = GrisBorde,
+    error = EstadoRojo,
+    errorContainer = EstadoRojoFondo
 )
 
 @Composable
 fun MCmovilCareTheme(
-    darkTheme: Boolean = false,
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-
     MaterialTheme(
-        colorScheme = colorScheme,
+        colorScheme = DarkTealColorScheme,
         typography = Typography,
         content = content
     )
