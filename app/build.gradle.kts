@@ -68,6 +68,15 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("androidx.navigation:navigation-compose:2.8.3")
 
+    // Cargar imagen QR desde la API en línea
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // Escáner de Códigos QR con cámara (Google ML Kit + CameraX)
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
+    implementation("androidx.camera:camera-camera2:1.4.0")
+    implementation("androidx.camera:camera-lifecycle:1.4.0")
+    implementation("androidx.camera:camera-view:1.4.0")
+
     // Testing & Debug
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation(platform("androidx.compose:compose-bom:2024.10.01"))

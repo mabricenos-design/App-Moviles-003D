@@ -7,7 +7,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.macmovilcare.model.RolUsuario
 import com.example.macmovilcare.ui.screens.CrearSolicitudScreen
 import com.example.macmovilcare.ui.screens.DetalleOrdenScreen
 import com.example.macmovilcare.ui.screens.HomeScreen
@@ -31,6 +30,8 @@ fun AppNavigation(
     val ordenes by ordenesViewModel.ordenes.collectAsState()
     val mensajeNotificacion by ordenesViewModel.notificacionTecnico.collectAsState()
     val valorDolar by ordenesViewModel.valorDolar.collectAsState()
+    val urlsQrPorOrden by ordenesViewModel.urlsQrPorOrden.collectAsState()
+    val resultadoEscaneoQr by ordenesViewModel.resultadoEscaneoQr.collectAsState()
 
     val solicitudState by solicitudViewModel.uiState.collectAsState()
 
@@ -62,7 +63,14 @@ fun AppNavigation(
                 nombreUsuario = nombreUsuarioActual,
                 esPantallaAncha = esPantallaAncha,
                 mensajeNotificacion = mensajeNotificacion,
+                resultadoEscaneoQr = resultadoEscaneoQr,
                 onDescartarNotificacion = { ordenesViewModel.limpiarNotificacion() },
+                onQrEscaneadoPorTecnico = { qrLeido ->
+                    ordenesViewModel.procesarQrEscaneadoPorTecnico(qrLeido)
+                },
+                onLimpiarResultadoQr = {
+                    ordenesViewModel.limpiarResultadoEscaneoQr()
+                },
                 onOrdenClick = { ordenId ->
                     ordenesViewModel.seleccionarOrden(ordenId)
                     navController.navigate("detalle/$ordenId")
@@ -111,6 +119,7 @@ fun AppNavigation(
                 orden = ordenSeleccionada,
                 rolUsuario = rolActivo,
                 valorDolar = valorDolar,
+                urlQrRetiro = ordenId?.let { urlsQrPorOrden[it] },
                 onAprobarCotizacion = {
                     ordenId?.let { ordenesViewModel.responderCotizacion(it, true) }
                 },

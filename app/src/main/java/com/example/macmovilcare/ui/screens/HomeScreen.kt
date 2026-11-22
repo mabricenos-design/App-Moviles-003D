@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import com.example.macmovilcare.model.EstadoOrden
 import com.example.macmovilcare.model.OrdenTrabajo
 import com.example.macmovilcare.model.RolUsuario
+import com.example.macmovilcare.ui.components.EscanerQrDialog
 import com.example.macmovilcare.ui.components.TarjetaOrden
 import com.example.macmovilcare.ui.theme.*
 
@@ -38,7 +40,10 @@ fun HomeScreen(
     nombreUsuario: String = "Usuario",
     esPantallaAncha: Boolean = false,
     mensajeNotificacion: String? = null,
+    resultadoEscaneoQr: String? = null,
     onDescartarNotificacion: () -> Unit = {},
+    onQrEscaneadoPorTecnico: (String) -> Unit = {},
+    onLimpiarResultadoQr: () -> Unit = {},
     onOrdenClick: (String) -> Unit,
     onNuevaSolicitudClick: () -> Unit,
     onEliminarOrden: (String) -> Unit = {},
@@ -46,6 +51,48 @@ fun HomeScreen(
 ) {
     var ordenAEliminar by remember { mutableStateOf<OrdenTrabajo?>(null) }
     var filtroEstadoAdmin by remember { mutableStateOf<EstadoOrden?>(null) }
+    var mostrarEscanerQr by remember { mutableStateOf(false) }
+
+    if (mostrarEscanerQr) {
+        EscanerQrDialog(
+            onQrDetectado = { codigoLeido ->
+                mostrarEscanerQr = false
+                onQrEscaneadoPorTecnico(codigoLeido)
+            },
+            onCerrar = { mostrarEscanerQr = false }
+        )
+    }
+
+    resultadoEscaneoQr?.let { mensajeResultado ->
+        AlertDialog(
+            onDismissRequest = onLimpiarResultadoQr,
+            containerColor = GrisSuperficie,
+            shape = RoundedCornerShape(18.dp),
+            title = {
+                Text(
+                    text = "Validación de Retiro",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextoOscuro
+                )
+            },
+            text = {
+                Text(
+                    text = mensajeResultado,
+                    fontSize = 13.sp,
+                    color = if (mensajeResultado.startsWith("Error")) EstadoRojo else Color(0xFF7CE8E2)
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = onLimpiarResultadoQr,
+                    colors = ButtonDefaults.buttonColors(containerColor = AzulVariante)
+                ) {
+                    Text("Aceptar")
+                }
+            }
+        )
+    }
 
     ordenAEliminar?.let { orden ->
         AlertDialog(
@@ -86,7 +133,8 @@ fun HomeScreen(
             it.estado == EstadoOrden.INGRESADO ||
                     it.estado == EstadoOrden.EN_DIAGNOSTICO ||
                     it.estado == EstadoOrden.EN_REPARACION ||
-                    it.estado == EstadoOrden.COTIZADO_PENDIENTE
+                    it.estado == EstadoOrden.COTIZADO_PENDIENTE ||
+                    it.estado == EstadoOrden.APROBADO
         }
         RolUsuario.ADMINISTRADOR -> {
             if (filtroEstadoAdmin == null) ordenes else ordenes.filter { it.estado == filtroEstadoAdmin }
@@ -137,7 +185,6 @@ fun HomeScreen(
                         }
                     },
                     actions = {
-                        // Etiqueta de bienvenida con el nombre extraído del correo
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = Color(0xFF143537),
@@ -179,16 +226,30 @@ fun HomeScreen(
             }
         },
         floatingActionButton = {
-            if (rolUsuario == RolUsuario.CLIENTE) {
-                ExtendedFloatingActionButton(
-                    onClick = onNuevaSolicitudClick,
-                    shape = RoundedCornerShape(14.dp),
-                    containerColor = AzulVariante,
-                    contentColor = Color.White,
-                    modifier = Modifier.height(46.dp),
-                    icon = { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(19.dp)) },
-                    text = { Text("Nueva Solicitud", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
-                )
+            when (rolUsuario) {
+                RolUsuario.CLIENTE -> {
+                    ExtendedFloatingActionButton(
+                        onClick = onNuevaSolicitudClick,
+                        shape = RoundedCornerShape(14.dp),
+                        containerColor = AzulVariante,
+                        contentColor = Color.White,
+                        modifier = Modifier.height(46.dp),
+                        icon = { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(19.dp)) },
+                        text = { Text("Nueva Solicitud", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                    )
+                }
+                RolUsuario.TECNICO -> {
+                    ExtendedFloatingActionButton(
+                        onClick = { mostrarEscanerQr = true },
+                        shape = RoundedCornerShape(14.dp),
+                        containerColor = AzulVariante,
+                        contentColor = Color.White,
+                        modifier = Modifier.height(46.dp),
+                        icon = { Icon(Icons.Rounded.QrCodeScanner, contentDescription = null, modifier = Modifier.size(19.dp)) },
+                        text = { Text("Escanear QR Retiro", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                    )
+                }
+                else -> {}
             }
         }
     ) { innerPadding ->

@@ -17,15 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.AdminPanelSettings
-import androidx.compose.material.icons.rounded.AttachMoney
-import androidx.compose.material.icons.rounded.Build
-import androidx.compose.material.icons.rounded.CameraAlt
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DeleteOutline
-import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.ReceiptLong
-import androidx.compose.material.icons.rounded.VerifiedUser
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,9 +31,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
 import com.example.macmovilcare.model.EstadoOrden
 import com.example.macmovilcare.model.OrdenTrabajo
 import com.example.macmovilcare.model.RolUsuario
@@ -57,6 +51,7 @@ fun DetalleOrdenScreen(
     orden: OrdenTrabajo?,
     rolUsuario: RolUsuario = RolUsuario.CLIENTE,
     valorDolar: Double = 950.0,
+    urlQrRetiro: String? = null,
     onAprobarCotizacion: () -> Unit,
     onRechazarCotizacion: () -> Unit,
     onResponderComoTecnico: (ordenId: String, comentarios: String, monto: Double, detalleCotizacion: String, uriFoto: String?) -> Unit,
@@ -163,6 +158,7 @@ fun DetalleOrdenScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Tarjeta principal de la Orden
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -210,6 +206,79 @@ fun DetalleOrdenScreen(
                     }
                 }
 
+                // TARJETA QR EN TIEMPO REAL PARA EL CLIENTE (Tras aprobar la solicitud/cotización)
+                if (urlQrRetiro != null && (orden.estado == EstadoOrden.APROBADO || orden.estado == EstadoOrden.LISTO_PARA_ENTREGA || orden.estado == EstadoOrden.ENTREGADO)) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.5.dp, AzulVariante),
+                        colors = CardDefaults.cardColors(containerColor = GrisSuperficie)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(18.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.QrCode2,
+                                    contentDescription = null,
+                                    tint = Color(0xFF7CE8E2),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Pase Digital QR de Retiro",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF7CE8E2)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = if (orden.estado == EstadoOrden.ENTREGADO) {
+                                    "Equipo retirado y validado exitosamente por el técnico."
+                                } else {
+                                    "Presenta este código QR en el taller para que el técnico autorice el retiro de tu equipo."
+                                },
+                                fontSize = 12.sp,
+                                color = TextoSecundario,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.White,
+                                modifier = Modifier.size(200.dp)
+                            ) {
+                                AsyncImage(
+                                    model = urlQrRetiro,
+                                    contentDescription = "Código QR de Retiro Orden #${orden.id}",
+                                    contentScale = ContentScale.Fit,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(10.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Text(
+                                text = "ORDEN #${orden.id} · SINCRONIZADO EN NUBE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AzulVariante
+                            )
+                        }
+                    }
+                }
+
+                // Vista Técnico: Elaborar Cotización
                 if (rolUsuario == RolUsuario.TECNICO && (orden.estado == EstadoOrden.INGRESADO || orden.estado == EstadoOrden.EN_DIAGNOSTICO)) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -427,6 +496,7 @@ fun DetalleOrdenScreen(
                     }
                 }
 
+                // Cotización y botones Aprobar / Rechazar del Cliente
                 orden.cotizacion?.let { cotizacion ->
                     val montoFormateado = formatoMoneda.format(cotizacion.montoTotal)
                     val montoEnUsd = if (valorDolar > 0) cotizacion.montoTotal / valorDolar else 0.0
@@ -494,7 +564,7 @@ fun DetalleOrdenScreen(
                                     ) {
                                         Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Aprobar", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                        Text("Aprobar y Generar QR", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                                     }
                                     OutlinedButton(
                                         onClick = onRechazarCotizacion,
@@ -515,49 +585,6 @@ fun DetalleOrdenScreen(
                                     color = TextoSecundario
                                 )
                             }
-                        }
-                    }
-                }
-
-                orden.garantia?.let { garantia ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, GrisBorde),
-                        colors = CardDefaults.cardColors(containerColor = GrisSuperficie)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.VerifiedUser, contentDescription = null, tint = AzulVariante, modifier = Modifier.size(19.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Garantía del Servicio", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextoOscuro)
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("Cobertura: ${garantia.coberturaDetalle}", fontSize = 13.sp, color = TextoOscuro)
-                            Text("Vigencia: ${garantia.fechaInicio} al ${garantia.fechaVencimiento}", fontSize = 12.sp, color = TextoSecundario)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (garantia.estaActiva) "Estado: ACTIVA" else "Estado: VENCIDA",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (garantia.estaActiva) EstadoVerde else EstadoRojo
-                            )
-                        }
-                    }
-                }
-
-                orden.proximaMantencion?.let { mantencion ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, GrisBorde),
-                        colors = CardDefaults.cardColors(containerColor = GrisSuperficie)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Próxima Mantención Sugerida", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextoOscuro)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("Servicio: ${mantencion.tipoMantencion}", fontSize = 13.sp, color = TextoOscuro)
-                            Text("Fecha sugerida: ${mantencion.fechaSugerida}", fontSize = 12.sp, color = TextoSecundario)
                         }
                     }
                 }
