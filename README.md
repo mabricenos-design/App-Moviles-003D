@@ -350,16 +350,6 @@ apksigner verify --verbose --print-certs app-release.apk
 
 - **Tablero de Trello:** [`[Aplicacion Movil]`](https://trello.com/b/bySLjXry/aplicacionmovil)
 
-**Captura del tablero con la planificación distribuida:**
-
-![Captura Tablero Trello](docs/evidencias/trello-tablero.png)
-
-| Integrante | Tarjetas / tareas asignadas | Estado |
-|------------|-----------------------------|--------|
-| `[Nombre Integrante 1]` | `[Tareas]` | `[Hecho / En progreso]` |
-| `[Nombre Integrante 2]` | `[Tareas]` | `[Hecho / En progreso]` |
-| `[Nombre Integrante 3]` | `[Tareas]` | `[Hecho / En progreso]` |
-
 ---
 
 <p align="center">MACMovilCare · Desarrollo de Aplicaciones Móviles · 2026</p>
