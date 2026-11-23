@@ -324,14 +324,6 @@ Verificación de la firma (herramienta `apksigner` de las *build-tools* del Andr
 apksigner verify --verbose --print-certs app-release.apk
 ```
 
-**Captura del APK firmado generado:**
-
-![Captura APK Firmado](docs/evidencias/apk-firmado.png)
-
-**Captura de la verificación de firma (opcional):**
-
-![Captura verificación apksigner](docs/evidencias/apksigner-verify.png)
-
 ### 6.2 Archivo keystore (`.jks`)
 
 | Característica | Valor |
