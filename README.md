@@ -348,7 +348,7 @@ apksigner verify --verbose --print-certs app-release.apk
 
 ### 6.3 Planificación en Trello
 
-- **Tablero de Trello:** [`[Nombre del tablero]`](https://trello.com/b/bySLjXry/aplicacionmovil)
+- **Tablero de Trello:** [`[Aplicacion Movil]`](https://trello.com/b/bySLjXry/aplicacionmovil)
 
 **Captura del tablero con la planificación distribuida:**
 
