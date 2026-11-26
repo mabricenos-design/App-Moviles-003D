@@ -257,12 +257,10 @@ curl http://localhost:8080/api/ordenes
 2. **Dirección del microservicio** (`app/src/main/java/com/example/macmovilcare/data/remote/RetrofitClient.kt`):
    - **Emulador Android:** ya está configurado en `http://10.0.2.2:8080/api/` (alias del `localhost` del PC).
    - **Teléfono físico:** reemplaza `BASE_URL` por la IP local del PC, por ejemplo `http://192.168.1.50:8080/api/` (misma red Wi-Fi y puerto 8080 permitido en el firewall).
-3. **Tráfico HTTP:** el microservicio se consume por HTTP (sin TLS). Como Android 9+ bloquea el tráfico no cifrado por defecto, para desarrollo agrega en `AndroidManifest.xml`, dentro de `<application>`:
+3. **Tráfico HTTP:** el microservicio se consume por HTTP (sin TLS). El archivo `AndroidManifest.xml` ya incluye `android:usesCleartextTraffic="true"` dentro de `<application>` para permitir la comunicación local con el servidor durante desarrollo y evaluación sin bloqueos de Android 9+.
 
-   ```xml
-   android:usesCleartextTraffic="true"
-   ```
 4. Selecciona un emulador o dispositivo y pulsa **Run ▶** (configuración `app`).
+
 5. Inicia sesión con las credenciales de la sección 3.1 y prueba el flujo completo:
    1. **Cliente:** *Nueva Solicitud* → ingresar equipo y falla.
    2. **Técnico:** abrir la solicitud → *Elaborar Cotización* → *Enviar Cotización al Cliente*.
