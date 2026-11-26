@@ -29,7 +29,7 @@ La app trabaja con **tres roles** (Cliente, Técnico y Administrador), cada uno 
 | Dato | Detalle |
 |------|---------|
 | Asignatura | Desarrollo de Aplicaciones Móviles — Cuarto Semestre |
-| Docente / Sección | `[Nombre del docente]` / `[Sección]` |
+| Docente / Sección | `[Miguel jesus Acevedo Cadiz]` / `[003D]` |
 | Repositorio | https://github.com/mabricenos-design/App-Moviles-003D (rama `MacMovilV3`) |
 | Paquete Android | `com.example.macmovilcare` |
 | Versión | 1.0 (`versionCode` 1) |
@@ -68,8 +68,8 @@ App-Moviles-003D/
 
 | N° | Nombre completo | Usuario GitHub | Rol en el equipo | Aportes registrados en Git (referencia) |
 |----|-----------------|----------------|------------------|------------------------------------------|
-| 1 | `[Martin Briceño 1]` | `Fleshtling` | `[Rol: Desarrollador Backend / QA]` | Integración de la API del dólar en tiempo real, persistencia del último valor, dependencias y pruebas unitarias |
-| 2 | `[Sayri Sepulveda 2]` | `sayrsepulveda-jpg` | `[Rol: Desarrollador Android / UI]` | Registro de solicitudes, cotización del técnico, captura de cámara, funciones de administrador, login por rol e integración del QR |
+| 1 | `Martin Briceño` | `Fleshtling` | `[Rol: Desarrollador Backend / QA]` | Integración de la API del dólar en tiempo real, persistencia del último valor, dependencias y pruebas unitarias |
+| 2 | `Sayri Sepulveda` | `sayrsepulveda-jpg` | `[Rol: Desarrollador Android / UI]` | Registro de solicitudes, cotización del técnico, captura de cámara, funciones de administrador, login por rol e integración del QR |
 
 
 ---
@@ -328,8 +328,8 @@ apksigner verify --verbose --print-certs app-release.apk
 
 | Característica | Valor |
 |----------------|-------|
-| Archivo | `LlaveAPK2` (keystore de firma, formato PKCS12) |
-| Alias de la llave | `[alias]` |
+| Archivo | `LlaveAPK3` (keystore de firma, formato PKCS12) |
+| Alias de la llave | `[LlaveAPK3]` |
 | Uso | Firma del APK de release |
 
 > ⚠️ **Seguridad:** el keystore y sus contraseñas **no deben subirse al repositorio ni documentarse** en este archivo. Se entrega únicamente la evidencia de su existencia.
