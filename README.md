@@ -333,6 +333,10 @@ apksigner verify --verbose --print-certs app-release.apk
 | Uso | Firma del APK de release |
 
 > ⚠️ **Seguridad:** el keystore y sus contraseñas **no deben subirse al repositorio ni documentarse** en este archivo. Se entrega únicamente la evidencia de su existencia.
+>
+> **Captura del APK firmado (`app-release.apk`):**
+
+![Captura APK Firmado](docs/evidencias/apk-firmado.png)
 
 **Captura del archivo `.jks` (keystore):**
 
